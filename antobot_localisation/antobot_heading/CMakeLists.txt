@@ -1,59 +1,26 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.8)
 project(antobot_heading)
 
-add_compile_options(-std=c++11)
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
 
-find_package(catkin REQUIRED
-    roscpp
-    std_msgs
-    std_srvs
-    nav_msgs
-    sensor_msgs
-    tf2_geometry_msgs
-    tf2
-    geonav_transform
-    antobot_platform_msgs
-    antobot_devices_msgs
-    geometry_msgs
-)
+# find dependencies
+find_package(ament_cmake REQUIRED)
+# uncomment the following section in order to fill in
+# further dependencies manually.
+# find_package(<dependency> REQUIRED)
 
-catkin_package(
-   INCLUDE_DIRS include
-   CATKIN_DEPENDS 
-        roscpp
-        std_msgs
-        std_srvs
-        nav_msgs
-        sensor_msgs
-        tf2_geometry_msgs
-        tf2
-        geonav_transform
-        antobot_platform_msgs
-        antobot_devices_msgs
-        geometry_msgs
-)
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  # the following line skips the linter which checks for copyrights
+  # comment the line when a copyright and license is added to all source files
+  set(ament_cmake_copyright_FOUND TRUE)
+  # the following line skips cpplint (only works in a git repo)
+  # comment the line when this package is in a git repo and when
+  # a copyright and license is added to all source files
+  set(ament_cmake_cpplint_FOUND TRUE)
+  ament_lint_auto_find_test_dependencies()
+endif()
 
-###########
-## Build ##
-###########
-
-include_directories(
-include
-${catkin_INCLUDE_DIRS}
-)
-
-add_library(heading
-  src/heading.cpp
-)
-
-add_dependencies(heading ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-add_executable(heading_node src/heading_node.cpp)
-
-add_dependencies(heading_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-target_link_libraries(heading_node
-  heading
-  ${catkin_LIBRARIES}
-)
-
+ament_package()
