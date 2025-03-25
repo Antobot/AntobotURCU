@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+        'softshutdown = antobot_urcu_monitor.softShutdown:main'
         ],
     },
 )
