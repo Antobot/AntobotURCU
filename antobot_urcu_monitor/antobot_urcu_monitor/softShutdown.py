@@ -24,7 +24,7 @@ class SoftShutdownServer(Node):
     def __init__(self):
         super().__init__('soft_shutdown_server')
         self.srv = self.create_service(SoftShutdown, 'soft_shutdown_req', self.softshutdown_callback)
-        self.host = '192.168.1.102' #'antobot-desktop'
+        self.host = '192.168.55.1' #'antobot-desktop'
         self.user = 'ubuntu' #'antobot'
         self.password = 'Antobot2021-'
         
