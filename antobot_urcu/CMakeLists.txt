@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(antobot_urcu_monitor)
+project(antobot_urcu)
 
 find_package(catkin REQUIRED COMPONENTS
   rospy
