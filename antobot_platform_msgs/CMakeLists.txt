@@ -19,6 +19,7 @@ add_message_files(
 add_service_files(
   FILES
   softShutdown.srv
+  setSafetyLevel.srv
 )
 
 generate_messages(
