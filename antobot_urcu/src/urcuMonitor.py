@@ -5,8 +5,8 @@
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-# # # Code Description:     sysMonitor looks after different system data such as CPU load, temperature, storage, and the
-#                           battery level of the robot. It reports any changes in status to antoSupervisor via rosout.
+# # # Code Description:     urcuMonitor looks after different system data such as CPU load, temperature, storage, and the
+#                           battery level of the robot. It reports any changes via rosout.
 
 # Contacts: daniel.freer@antobot.ai
 
