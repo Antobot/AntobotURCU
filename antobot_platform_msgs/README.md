@@ -11,5 +11,6 @@ UInt16_Array - a generic array of UInt16 data
 ## Services
 
 softShutdown - can turn off the robot whenever desired, depending on software conditions
+setSafetyLevel - sets a safety level for the robot platform (see AntobotRobot/antobot_safety)
 
 
