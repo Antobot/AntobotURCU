@@ -227,19 +227,20 @@ class urcuMonitor():
             except rospy.ServiceException as e:
                 print("service call failed: %s" % e)
 
+    def loop(self,event=None): # Just a function to call all the looped code
+        self.storage_management()
+        self.battery_lvl()
+        self.xavier_monitor()
+        self.soft_shutdown_process()
+
 def main():
-    rospy.init_node ('urcuMonitor') 
-    rate = rospy.Rate(1)
+    rospy.init_node ('sysMonitor') 
     sysMonitor= urcuMonitor()
+
     try:
-        while not rospy.is_shutdown():
-            sysMonitor.storage_management()
-            sysMonitor.battery_lvl()
-            sysMonitor.xavier_monitor()
-            sysMonitor.soft_shutdown_process()
-            rate.sleep()
-    # except:
-    #     print("Exception occured!!")
+        rospy.Timer(rospy.Duration(1), sysMonitor.loop)  # Runs periodically without blocking
+        rospy.spin()   
+
     finally:
         if not sysMonitor.jtop_ext:
             sysMonitor.jetson.close
