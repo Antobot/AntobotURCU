@@ -9,7 +9,7 @@
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 import subprocess
-import rospy
+import rclpy
 from std_srvs.srv import Trigger, TriggerResponse
 
 
@@ -30,12 +30,12 @@ def launchEkf(request):
 if __name__ == '__main__':
 
     # init node
-    rospy.init_node('heading_ekf_launcher', anonymous=True) 
-    rospy.loginfo('heading_ekf_launcher started')
+    rclpy.init_node('heading_ekf_launcher', anonymous=True) 
+    rclpy.loginfo('heading_ekf_launcher started')
 
-    ser_amheading = rospy.Service('launch_ekf', Trigger, launchEkf)
+    ser_amheading = rclpy.Service('launch_ekf', Trigger, launchEkf)
 
-    rospy.spin()
+    rclpy.spin()
 
 
 

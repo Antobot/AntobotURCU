@@ -15,7 +15,7 @@
 # Contacts:     soyoung.kim@antobot.ai
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-import rospy
+import rclpy
 import time
 import math
 import sys, signal
@@ -71,39 +71,39 @@ class autoCalibration:
         self.gps_yaw = None
 
         # Read parameters to set the topic names
-        self.gps_topic = rospy.get_param('~gps_topic', 'antobot_gps')
-        self.imu_topic = rospy.get_param('~imu_topic','imu/data')
-        self.odometry_topic = rospy.get_param('~odometry_topic', 'odometry/filtered')
-        self.wheelodometry_topic = rospy.get_param('~wheel_odometry_topic', 'antobot_robot/odom')
-        self.sim = rospy.get_param("/simulation",False) 
+        self.gps_topic = rclpy.get_param('~gps_topic', 'antobot_gps')
+        self.imu_topic = rclpy.get_param('~imu_topic','imu/data')
+        self.odometry_topic = rclpy.get_param('~odometry_topic', 'odometry/filtered')
+        self.wheelodometry_topic = rclpy.get_param('~wheel_odometry_topic', 'antobot_robot/odom')
+        self.sim = rclpy.get_param("/simulation",False) 
 
         self.rtk_target_status = 3 # rtk status is 3 in 3D fixed mode
         if self.sim:
             self.rtk_target_status = 0 # in simulation, gps status is always 0
 
         # Subscribers
-        self.sub_gps = rospy.Subscriber(self.gps_topic, NavSatFix, self.gpsCallback)
-        self.sub_imu = rospy.Subscriber(self.imu_topic, Imu, self.imuCallback)
-        self.sub_odometry = rospy.Subscriber(self.odometry_topic, Odometry, self.odometryCallback)
-        self.sub_wheel_odom = rospy.Subscriber(self.wheelodometry_topic,Odometry, self.wheelOdomCallback)
+        self.sub_gps = rclpy.Subscriber(self.gps_topic, NavSatFix, self.gpsCallback)
+        self.sub_imu = rclpy.Subscriber(self.imu_topic, Imu, self.imuCallback)
+        self.sub_odometry = rclpy.Subscriber(self.odometry_topic, Odometry, self.odometryCallback)
+        self.sub_wheel_odom = rclpy.Subscriber(self.wheelodometry_topic,Odometry, self.wheelOdomCallback)
         
         # Publishers
-        self.pub_imu = rospy.Publisher('/imu/data_corrected', Imu, queue_size=10)
-        self.pub_imu_offset = rospy.Publisher('/imu/data_offset', Float32, queue_size=10)
+        self.pub_imu = rclpy.Publisher('/imu/data_corrected', Imu, queue_size=10)
+        self.pub_imu_offset = rclpy.Publisher('/imu/data_offset', Float32, queue_size=10)
 
         # ServiceClient
-        rospy.wait_for_service('launch_ekf')
-        self.launch_ekf_service = rospy.ServiceProxy('launch_ekf', Trigger)
+        rclpy.wait_for_service('launch_ekf')
+        self.launch_ekf_service = rclpy.ServiceProxy('launch_ekf', Trigger)
         print('service found')
 
 
         # imu_calibration_status topic is used in heading_launcher (starts EKF node after the initial calibration)
         # -1: inital value, 1: initial calibration finished, 2: auto calibration running (every 30 seconds)
         self.imu_calibration_status = -1
-        self.pub_calib = rospy.Publisher('/imu_calibration_status', UInt8, queue_size=10)
+        self.pub_calib = rclpy.Publisher('/imu_calibration_status', UInt8, queue_size=10)
 
         # calculate and see if auto calibraion is needed
-        self.timer = rospy.Timer(rospy.Duration(30), self.autoCalibrate) 
+        self.timer = rclpy.Timer(rclpy.Duration(30), self.autoCalibrate) 
 
 ###################################################################################################       
 
@@ -147,13 +147,13 @@ class autoCalibration:
 
         while ((not self.imu_received) or (not self.gps_received)):
             print('Waiting for initial imu and gps data new')
-            rospy.sleep(0.1)
+            rclpy.sleep(0.1)
 
         print('IMU and gps value received, check for RTK status')
 
         while (self.rtk_status != self.rtk_target_status):
             print('Waiting for RTK status to become ',self.rtk_target_status)
-            rospy.sleep(0.1)
+            rclpy.sleep(0.1)
 
         print('RTK status is {}- start calibration'.format(self.rtk_target_status))
 
@@ -166,7 +166,7 @@ class autoCalibration:
         # Check if all input toics are being published 
         self.checkInputs() 
 
-        rospy.loginfo('calibration started')
+        rclpy.loginfo('calibration started')
         state = 1
         while (True):
             if state == 1:
@@ -178,7 +178,7 @@ class autoCalibration:
                 state = result
                 if (state == 3):
                     break
-            rospy.sleep(0.1) # othewise the ros shutdown deosn't work (from heading launcher)
+            rclpy.sleep(0.1) # othewise the ros shutdown deosn't work (from heading launcher)
       
         print('gps_yaw {}'.format(self.gps_yaw))
         # convert imu orientation from quaternion to euler
@@ -187,7 +187,7 @@ class autoCalibration:
         # Formula used: imu_yaw + imu_offset = gps_yaw
         self.imu_offset = self.calculateDifference(self.gps_yaw,imu_angles[0])
 
-        rospy.loginfo('calibration successful (offset = %f degs)', self.imu_offset / 3.1415 * 180.0)
+        rclpy.loginfo('calibration successful (offset = %f degs)', self.imu_offset / 3.1415 * 180.0)
         self.imu_calibration_status = 1
 
         # Let heading launcher know the inital calibration is finished 
@@ -196,7 +196,7 @@ class autoCalibration:
 
 
         
-        rospy.wait_for_service('launch_ekf')
+        rclpy.wait_for_service('launch_ekf')
         srv = TriggerRequest()
         response = self.launch_ekf_service(srv)
        
@@ -262,7 +262,7 @@ class autoCalibration:
         self.gps_yaw = math.atan2(dy, dx)   # calculate yaw from gps start and end points
 
         if (d >= self.calib_distance):
-            rospy.loginfo('calibration distance satisfied')
+            rclpy.loginfo('calibration distance satisfied')
             return 3
         else:
             return 2 # not satisfied
@@ -284,7 +284,7 @@ class autoCalibration:
         # Description: Function that is called every 30 seconds to check if the calibration is needed. 
         # In the while loop, several conditions are checked and if theses conditions are met within 20 seconds, the new imu_offset is calculated (calibration)
         
-        self.started_time = rospy.get_time()
+        self.started_time = rclpy.get_time()
         if (self.imu_calibration_status == 1 and self.odometry_received):
             print('auto calibration called but skip one time') # Since the initial calibration was done recently
             self.imu_calibration_status = 2
@@ -322,16 +322,16 @@ class autoCalibration:
 
                     if diff_deg > self.calib_deg:
                         self.imu_offset = self.calculateDifference(self.gps_yaw,imu_angles[0])  # difference between orientations from imu and gps
-                        rospy.loginfo('auto-calibration successful (imu offset = %f degs)', self.imu_offset / 3.1415 * 180.0)
+                        rclpy.loginfo('auto-calibration successful (imu offset = %f degs)', self.imu_offset / 3.1415 * 180.0)
                     else:
-                        rospy.loginfo('auto-calibration not required {} deg'.format(diff_deg))
+                        rclpy.loginfo('auto-calibration not required {} deg'.format(diff_deg))
                     break
 
-                duration = (rospy.get_time() - self.started_time)
+                duration = (rclpy.get_time() - self.started_time)
                 if duration > 20.0:
                     print('auto calibration conditions not met')
                     break
-                rospy.sleep(0.1)
+                rclpy.sleep(0.1)
         else:
             print('auto calibration called but ignored - Do initial calibration first!')
 
@@ -346,7 +346,7 @@ class autoCalibration:
 
         # create imu message
         imuMsg = Imu()
-        imuMsg.header.stamp = rospy.Time.now()
+        imuMsg.header.stamp = rclpy.Time.now()
         imuMsg.header.frame_id = self.imu_frame # imu
         imuMsg.orientation.x = q[0]
         imuMsg.orientation.y = q[1]
@@ -367,16 +367,16 @@ class autoCalibration:
 
 if __name__ == '__main__':
     # init node
-    rosnode = rospy.init_node('heading_node_py', anonymous=True)
+    rosnode = rclpy.init_node('heading_node_py', anonymous=True)
     
     # Define an autoCalibration object and run the initial calibration
     autoCalib = autoCalibration()
     autoCalib.initialCalibration()
 
     # loop rate
-    rate = rospy.Rate(10)  # 10hz for imu publishing
+    rate = rclpy.Rate(10)  # 10hz for imu publishing
     
-    while not rospy.is_shutdown():
+    while not rclpy.is_shutdown():
         if (autoCalib.imu_calibration_status > 0): # after initial calibration
             autoCalib.publishNewIMU()
         rate.sleep()
