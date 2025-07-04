@@ -1,0 +1,3 @@
+int16 safetyLevel
+---
+bool responseBool

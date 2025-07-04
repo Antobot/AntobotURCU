@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'antobot_urcu_monitor'
+package_name = 'antobot_urcu'
 
 setup(
     name=package_name,
@@ -13,14 +13,14 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='antoscout-orin',
+    maintainer='Zhuang Zhou',
     maintainer_email='zhuang.zhou@antobot.ai',
     description='TODO: Package description',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-        'softshutdown = antobot_urcu_monitor.softShutdown:main'
+        'softshutdown = antobot_urcu.softShutdown:main'
         ],
     },
 )

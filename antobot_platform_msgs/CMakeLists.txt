@@ -16,7 +16,9 @@ rosidl_generate_interfaces(${PROJECT_NAME}
     "msg/Float32Array.msg"
     "msg/UInt8Array.msg"
     "msg/UInt16Array.msg"
+    "msg/VoxelGrid.msg"
     "srv/SoftShutdown.srv"
+    "srv/setSafetyLevel.srv"
   DEPENDENCIES std_msgs 
 )
 

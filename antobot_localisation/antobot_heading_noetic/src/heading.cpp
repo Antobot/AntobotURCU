@@ -131,7 +131,7 @@ namespace heading
     } 
 
     bool heading::hmiService(antobot_devices_msgs::progressUpdate::Request &req, antobot_devices_msgs::progressUpdate::Response &res ){
-        ROS_INFO("hmi auto service called %d",req.progressCode);
+        ROS_INFO("HMI button pressed - set hmi_auto_button_pressed True %d",req.progressCode);
         hmi_auto_button_pressed = true;
         hmi_auto_button_time =ros::Time::now();
         return true;
@@ -333,7 +333,7 @@ namespace heading
         
         while (true){
             ros::spinOnce();
-            if (! dual_gps && hmi_auto_button_pressed){
+            if (! dual_gps && hmi_auto_button_pressed && (state != 3)){ // to prevent a bug that makes robot drive 1m more after finishing calibration - possibly due to hmi button being pressed for a longer time. 
                 hmi_auto_button_pressed = false; 
                 // update HMI progress : state 2 - In auto calibration
                 antobot_devices_msgs::progressUpdate hmi_req;
