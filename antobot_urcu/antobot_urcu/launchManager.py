@@ -20,77 +20,91 @@
 
 import sys
 import yaml
-import rospy
+import rclpy
 from pathlib import Path
 from datetime import datetime
 
-import roslaunch # Using this until we develop our own camera manager solution
+import launch
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, OpaqueFunction, GroupAction
+from launch.actions import IncludeLaunchDescription
+from launch.conditions import IfCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+
+from launch_ros.actions import Node
+
 import rospkg
 
-from std_srvs.srv import Empty, EmptyRequest, EmptyResponse
+from std_srvs.srv import Empty
 
-class ProcessListener(roslaunch.pmon.ProcessListener):
-    
-    def process_died(self, name, exit_code):
-        rospy.logwarn("%s died with code %s", name, exit_code)
-        if ('costmap' in name):
-            rospy.logerr("SW109" + "1: " + name + " node has died!")
-            self.costmapManagerClient = rospy.ServiceProxy('/costmap_manager/node_died_costmap',Empty)
-            req = EmptyRequest()
-            res = self.costmapManagerClient.call(req)
-        elif ('imu' in name):
-            rospy.logerr("SW108" + "1: " + name + " node has died!")
-            self.costmapManagerClient = rospy.ServiceProxy('/costmap_manager/node_died_imu',Empty)
-            req = EmptyRequest()
-            res = self.costmapManagerClient.call(req)
-            
-        #elif ('opcua_nodes' in name):
-        #    rospy.logerr("SW2131: " + name + " node has died!")
-        #    netMonitorLaunchClient = rospy.ServiceProxy("/antobot/netManager/netMonitorLaunch", netMonitorLaunch)
-        #    req = netMonitorLaunch()
-        #    req.command = 1
-        #    req.network = "OPCUA"
-        #    res = netMonitorLaunchClient.call(req.network, req.command)
-           
-        elif('webUI_server' in name):
-            rospy.logerr("SW2131: " + name + " node has died!")
-            netMonitorLaunchClient = rospy.ServiceProxy("/antobot/netManager/netMonitorLaunch", netMonitorLaunch)
-            req = netMonitorLaunch()
-            req.command = 1
-            req.network = "webUI"
-            res = netMonitorLaunchClient.call(req.network, req.command)
-        else:
-            pass
+class ProcessListener():
 
+    def __init__():
+        print("process listener object (dummy)")
 
-class RoslaunchWrapperObject(roslaunch.parent.ROSLaunchParent):
-    # ref: https://github.com/ros/ros_comm/issues/2238
-    def start(self):
-        super(RoslaunchWrapperObject, self).start()
-        #print(self.server)
-
-    def start_node_name(self,node_name): # for costmap node for now
-        super(RoslaunchWrapperObject, self).start()
-        #print(self.server)
-        if node_name == 'costmap':
-            rospy.loginfo("SW109" + "0: " + "costmap" + " node has started!")
-        elif node_name == 'imu_euler':
-            rospy.loginfo("SW108" + "0: " + "imu_euler" + " node has started!")
-        elif node_name == 'opcua_nodes':
-            rospy.loginfo("SW2130: OPCUA nodes have started!")
-        elif node_name == 'webUI':
-            rospy.loginfo("SW2130: webUI node has started!")
-
-    def stop(self):
-        #print("Stopping...")
-        #print(self.server)
-        server = self.server.server if self.server is not None and self.server.server is not None else None
-        super(RoslaunchWrapperObject, self).shutdown()
-        if server:
-           server.shutdown()
+#     def process_died(self, name, exit_code):
+#         rclpy.logwarn("%s died with code %s", name, exit_code)
+#         if ('costmap' in name):
+#             rclpy.logerr("SW109" + "1: " + name + " node has died!")
+#             self.costmapManagerClient = rclpy.ServiceProxy('/costmap_manager/node_died_costmap',Empty)
+#             # req = EmptyRequest()
+#             # res = self.costmapManagerClient.call(req)
+#         elif ('imu' in name):
+#             rclpy.logerr("SW108" + "1: " + name + " node has died!")
+#             self.costmapManagerClient = rclpy.ServiceProxy('/costmap_manager/node_died_imu',Empty)
+#             # req = EmptyRequest()
+#             # res = self.costmapManagerClient.call(req)
+#             
+#         #elif ('opcua_nodes' in name):
+#         #    rclpy.logerr("SW2131: " + name + " node has died!")
+#         #    netMonitorLaunchClient = rclpy.ServiceProxy("/antobot/netManager/netMonitorLaunch", netMonitorLaunch)
+#         #    req = netMonitorLaunch()
+#         #    req.command = 1
+#         #    req.network = "OPCUA"
+#         #    res = netMonitorLaunchClient.call(req.network, req.command)
+#            
+#         elif('webUI_server' in name):
+#             rclpy.logerr("SW2131: " + name + " node has died!")
+#             netMonitorLaunchClient = rclpy.ServiceProxy("/antobot/netManager/netMonitorLaunch", netMonitorLaunch)
+#             req = netMonitorLaunch()
+#             req.command = 1
+#             req.network = "webUI"
+#             res = netMonitorLaunchClient.call(req.network, req.command)
+#         else:
+#             pass
 
 
-class Node:
+class RoslaunchWrapperObject():
+    def __init__():
+        print("roslaunch wrapper object (dummy)")
+#     # ref: https://github.com/ros/ros_comm/issues/2238
+#     def start(self):
+#         super(RoslaunchWrapperObject, self).start()
+#         #print(self.server)
+# 
+#     def start_node_name(self,node_name): # for costmap node for now
+#         super(RoslaunchWrapperObject, self).start()
+#         #print(self.server)
+#         if node_name == 'costmap':
+#             rclpy.loginfo("SW109" + "0: " + "costmap" + " node has started!")
+#         elif node_name == 'imu_euler':
+#             rclpy.loginfo("SW108" + "0: " + "imu_euler" + " node has started!")
+#         elif node_name == 'opcua_nodes':
+#             rclpy.loginfo("SW2130: OPCUA nodes have started!")
+#         elif node_name == 'webUI':
+#             rclpy.loginfo("SW2130: webUI node has started!")
+# 
+#     def stop(self):
+#         #print("Stopping...")
+#         #print(self.server)
+#         server = self.server.server if self.server is not None and self.server.server is not None else None
+#         super(RoslaunchWrapperObject, self).shutdown()
+#         if server:
+#            server.shutdown()
+
+
+class AntobotSWNode:
     def __init__(self, name_arg, package_arg, executable_arg, err_code_id, name_space, input_args, node_type):
         
         self._name = name_arg
@@ -120,12 +134,11 @@ class Node:
     def define_node(self):
         """
         Method to define a ROS node
+
         """
-        self._node = roslaunch.core.Node(package=self._package, node_type=self._executable, name=self._name, namespace=self._namespace,
-                                         machine_name=None, args=str(self._instance_num),
-                                         respawn=False, respawn_delay=0.0,
-                                         remap_args=None, env_args=None, output='screen', cwd=None,
-                                         launch_prefix=None, required=False, filename='<unknown>')
+        # Takes the description and joint angles as inputs and publishes the 3D poses of the robot links
+        self._node = Node(package=self._package, executable=self._executable, name=self._name, output='both')
+        return self._node
 
     def launch(self, launcher):
         """
@@ -154,8 +167,8 @@ class Node:
 
 def main(args):
     
-    rospy.init_node('launchManager', anonymous=False)
-    rospy.spin()
+    rclpy.init_node('launchManager', anonymous=False)
+    rclpy.spin()
 
 if __name__ == '__main__':
     main(sys.argv)

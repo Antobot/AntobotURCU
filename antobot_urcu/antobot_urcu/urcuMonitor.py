@@ -14,7 +14,7 @@
 
 from jtop import jtop
 import shutil
-import rospy
+import rclpy
 import json
 import yaml
 import rospkg
@@ -49,13 +49,13 @@ class urcuMonitor():
         self.storage_level = 0  # Assume there is plenty of storage remaining
         self.As_sBatlvl = "none"
 
-        self.sub_As_uBat = rospy.Subscriber("/antobridge/Ab_uBat",UInt8_Array,self.battery_callback)
-        self.sub_soft_shutdown_button = rospy.Subscriber('/antobridge/soft_shutdown_button',Bool,self.soft_shutdown_callback)
+        self.sub_As_uBat = rclpy.Subscriber("/antobridge/Ab_uBat",UInt8_Array,self.battery_callback)
+        self.sub_soft_shutdown_button = rclpy.Subscriber('/antobridge/soft_shutdown_button',Bool,self.soft_shutdown_callback)
 
-        self.pub_soft_shutdown_req = rospy.Publisher("/antobridge/soft_shutdown_req", Bool,queue_size = 1)
-        self.pub_soc = rospy.Publisher("/as/soc", UInt8, queue_size = 1)
+        self.pub_soft_shutdown_req = rclpy.Publisher("/antobridge/soft_shutdown_req", Bool,queue_size = 1)
+        self.pub_soc = rclpy.Publisher("/as/soc", UInt8, queue_size = 1)
 
-        self.soft_shutdown_client = rospy.ServiceProxy('soft_shutdown_req',softShutdown)
+        self.soft_shutdown_client = rclpy.ServiceProxy('soft_shutdown_req',softShutdown)
 
         return
 
@@ -91,7 +91,7 @@ class urcuMonitor():
                 self.As_cputemp = data['cpuTemp']
                 self.As_cpuLoad = data['cpuLoad']
         except Exception as e:
-            rospy.loginfo("SW2122: Error while reading from file outside docker: {e}")
+            rclpy.loginfo("SW2122: Error while reading from file outside docker: {e}")
 
     def cpu_temp_level(self):
         cpu_temp_level_i = "low"
@@ -102,11 +102,11 @@ class urcuMonitor():
 
         if cpu_temp_level_i is not self.cpu_temp_level_str:
             if cpu_temp_level_i == "low":
-                rospy.loginfo("SF1000: CPU temp low (<50)")
+                rclpy.loginfo("SF1000: CPU temp low (<50)")
             if cpu_temp_level_i == "medium":
-                rospy.logwarn("SF1000: CPU temp medium (>50)")
+                rclpy.logwarn("SF1000: CPU temp medium (>50)")
             if cpu_temp_level_i == "high":
-                rospy.logerr("SF1000: CPU temp high (>60)")
+                rclpy.logerr("SF1000: CPU temp high (>60)")
             self.cpu_temp_level_str = cpu_temp_level_i
 
 
@@ -125,11 +125,11 @@ class urcuMonitor():
 
         if cpu_load_i is not self.cpu_load_level_str:
             if cpu_load_i == "low":
-                rospy.loginfo("SF1100: CPU load low (<80%)")
+                rclpy.loginfo("SF1100: CPU load low (<80%)")
             if cpu_load_i == "medium":
-                rospy.logwarn("SF1100: CPU load medium (>80%)")
+                rclpy.logwarn("SF1100: CPU load medium (>80%)")
             if cpu_load_i == "high":
-                rospy.logerr("SF1100: CPU load high (>90%)")
+                rclpy.logerr("SF1100: CPU load high (>90%)")
             self.cpu_load_level_str = cpu_load_i
 
     
@@ -154,11 +154,11 @@ class urcuMonitor():
 
         if storage_level_i is not self.storage_level:
             if storage_level_i == 1:
-                rospy.loginfo("SF1200: Storage < 10 percent remaining")
+                rclpy.loginfo("SF1200: Storage < 10 percent remaining")
             if storage_level_i == 2:
-                rospy.logwarn("SF1200: Storage < 2 GB remaining")
+                rclpy.logwarn("SF1200: Storage < 2 GB remaining")
             if storage_level_i == 3: 
-                rospy.logerr("SF1200: Storage < 1 percent remaining")
+                rclpy.logerr("SF1200: Storage < 1 percent remaining")
             self.storage_level = storage_level_i
 
         return self.As_bStorage
@@ -201,13 +201,13 @@ class urcuMonitor():
 
         if battery_level_i is not self.As_sBatlvl:
             if battery_level_i == "high":
-                rospy.logdebug("SF1300: Battery >80 percent (high)")
+                rclpy.logdebug("SF1300: Battery >80 percent (high)")
             if battery_level_i == "medium":
-                rospy.loginfo("SF1300: Battery >55 percent (medium)")
+                rclpy.loginfo("SF1300: Battery >55 percent (medium)")
             if battery_level_i == 2:
-                rospy.logwarn("SF1300: Battery >30 percent (low)")
+                rclpy.logwarn("SF1300: Battery >30 percent (low)")
             if battery_level_i == 3: 
-                rospy.logerr("SF1300: Battery <30 percent (critical)")
+                rclpy.logerr("SF1300: Battery <30 percent (critical)")
             self.As_sBatlvl = battery_level_i
         
         self.pub_soc.publish(self.As_uSoC)
@@ -224,7 +224,7 @@ class urcuMonitor():
             self.pub_soft_shutdown_req.publish(self.soft_shutdown_req)
             try:
                 soft_shutdown_reponse = self.soft_shutdown_client(1)
-            except rospy.ServiceException as e:
+            except rclpy.ServiceException as e:
                 print("service call failed: %s" % e)
 
     def loop(self,event=None): # Just a function to call all the looped code
@@ -234,12 +234,12 @@ class urcuMonitor():
         self.soft_shutdown_process()
 
 def main():
-    rospy.init_node ('sysMonitor') 
+    rclpy.init_node ('sysMonitor') 
     sysMonitor= urcuMonitor()
 
     try:
-        rospy.Timer(rospy.Duration(1), sysMonitor.loop)  # Runs periodically without blocking
-        rospy.spin()   
+        rclpy.Timer(rclpy.Duration(1), sysMonitor.loop)  # Runs periodically without blocking
+        rclpy.spin()   
 
     finally:
         if not sysMonitor.jtop_ext:

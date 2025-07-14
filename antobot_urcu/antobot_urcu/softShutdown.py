@@ -15,7 +15,7 @@
 import subprocess
 from antobot_platform_msgs.srv import softShutdown, softShutdownResponse
 import os
-import rospy
+import rclpy
 import time
 
 
@@ -35,9 +35,9 @@ def softShutdownprocess(req):
     return return_msg
 
 def soft_shutdown_server():
-    rospy.init_node('soft_shutdown_server')
-    s = rospy.Service('soft_shutdown_req', softShutdown,softShutdownprocess)
-    rospy.spin()
+    rclpy.init_node('soft_shutdown_server')
+    s = rclpy.Service('soft_shutdown_req', softShutdown,softShutdownprocess)
+    rclpy.spin()
 
         
 if __name__ == '__main__': 
