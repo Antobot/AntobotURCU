@@ -7,9 +7,24 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(antobot_devices_msgs REQUIRED)
+
+add_executable(heading_node src/heading_node.cpp)
+ament_target_dependencies(heading_node rclcpp std_msgs std_srvs sensor_msgs geometry_msgs nav_msgs tf2 tf2_geometry_msgs antobot_devices_msgs)
+target_include_directories(heading_node PUBLIC include include/antobot_heading)
+
+install(
+  TARGETS heading_node
+  DESTINATION lib/${PROJECT_NAME})
+
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
