@@ -15,7 +15,7 @@
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 */
 
-#include <antobot_heading/heading.h>
+#include <antobot_heading/heading.hpp>
 
 //namespace AntobotHeading
 //{
@@ -595,7 +595,15 @@ void heading::publishNewIMU(const ros::TimerEvent& event){
 void heading::gpsCallback(const sensor_msgs::NavSatFix::ConstPtr& msg){
     // Description: GPS callback function that gets utm coordinates(from lat, long values) and rts status
     // UTMNorthing, UTMEasting, UTMZone
-    LLtoUTM(msg->latitude, msg->longitude, utm_y, utm_x, utm_zone); //convert from gps to utm coordinates  
+    // LLtoUTM(msg->latitude, msg->longitude, utm_y, utm_x, utm_zone); //convert from gps to utm coordinates  
+    geographic_msgs::msg::GeoPoint geo_pt;
+    geo_pt.latitude = msg->latitude;
+    geo_pt.longitude = msg->longitude;
+    geo_pt.altitude = msg->altitude;
+
+    geodesy::UTMPoint utm_pt(geo_pt);
+
+
     rtk_status = msg->status.status;
     if (!gps_received){
         gps_received = true;

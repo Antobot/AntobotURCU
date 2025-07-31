@@ -17,6 +17,8 @@
 #include <cmath>
 
 #include "rclcpp/rclcpp.hpp"
+#include <geodesy/utm.h>
+#include <geographic_msgs/msg/geo_point.hpp>
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <std_msgs/msg/u_int8.hpp>
@@ -132,7 +134,7 @@ class AntobotHeading : public rclcpp::Node
         
         // Clients
         //rclcpp::Client<std_srvs::srv::Trigger> ekf_srv;
-        //rclcpp::Client<antobot_devices_msgs::srv::ProgressUpdate> hmi_srv;
+        rclcpp::Client<antobot_devices_msgs::srv::ProgressUpdate>::SharedPtr hmi_cli;
         
         // Services
         //rclcpp::Service<antobot_devices_msgs::srv::ProgressUpdate> hmi_calibration_srv;
@@ -228,7 +230,7 @@ class AntobotHeading : public rclcpp::Node
           
           // Clients
           auto ekf_srv = this->create_client<std_srvs::srv::Trigger>("launch_ekf"); // launch ekf nodes once the initial calibration is done
-          auto hmi_srv = this->create_client<antobot_devices_msgs::srv::ProgressUpdate>("/calibration_HMI/progressUpdate"); // update progress in HMI bridge
+          hmi_cli = this->create_client<antobot_devices_msgs::srv::ProgressUpdate>("/calibration_HMI/progressUpdate"); // update progress in HMI bridge
           
           // Service - currently causes large build error!
           //auto hmi_calibration_srv = this->create_service<antobot_devices_msgs::srv::ProgressUpdate>("/calibration/progressUpdate", &AntobotHeading::hmiService);
@@ -526,9 +528,10 @@ class AntobotHeading : public rclcpp::Node
               if (duration > 15){
                   RCLCPP_INFO(this->get_logger(), "HMI auto-calibration: Time out (15s)- Fail");
                   // update HMI progress : state 4 - calibration fail
-                  antobot_devices_msgs::srv::ProgressUpdate hmi_req;
-                  hmi_req.Request.progress_code = 4;
-                  hmi_srv.call(hmi_req);
+                  //antobot_devices_msgs::srv::ProgressUpdate hmi_req;
+                  auto hmi_req = std::make_shared<antobot_devices_msgs::srv::ProgressUpdate::Request>();
+                  hmi_req->progress_code = 4;
+                  auto result = hmi_cli->async_send_request(hmi_req);
                   RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 4 (auto calibration fail)");
                   break;
               }
@@ -589,7 +592,7 @@ class AntobotHeading : public rclcpp::Node
           const std::shared_ptr<antobot_devices_msgs::srv::ProgressUpdate::Request> req, 
           const std::shared_ptr<antobot_devices_msgs::srv::ProgressUpdate::Response> res)
         {
-          RCLCPP_INFO(this->get_logger(), "HMI button pressed - set hmi_auto_button_pressed True %d",req.progress_code);
+          RCLCPP_INFO(this->get_logger(), "HMI button pressed - set hmi_auto_button_pressed True %d",req->progress_code);
           hmi_auto_button_pressed = true;
           hmi_auto_button_time = this->now();
         }
@@ -665,7 +668,18 @@ class AntobotHeading : public rclcpp::Node
         {
           // Description: GPS callback function that gets utm coordinates(from lat, long values) and rts status
           // UTMNorthing, UTMEasting, UTMZone
-          LLtoUTM(msg.latitude, msg.longitude, utm_y, utm_x, utm_zone); //convert from gps to utm coordinates  
+          // LLtoUTM(msg.latitude, msg.longitude, utm_y, utm_x, utm_zone); //convert from gps to utm coordinates 
+
+          geographic_msgs::msg::GeoPoint geo_pt;
+          geo_pt.latitude = msg.latitude;
+          geo_pt.longitude = msg.longitude;
+          geo_pt.altitude = msg.altitude;
+
+          //geodesy::UTMPoint utm_pt;
+          //fromMsg(geo_pt, utm_pt);
+          //utm_y = utm_pt.easting;
+          //utm_x = utm_pt.northing;
+
           rtk_status = msg.status.status;
           if (!gps_received){
               gps_received = true;
