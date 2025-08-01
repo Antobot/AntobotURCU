@@ -204,15 +204,16 @@ class AntobotHeading : public rclcpp::Node
           this->declare_parameter("/heading_node/gps_topic", gps_topic);
           //nh_.getParam("/heading_node/imu_topic", imu_topic);
           imu_topic = "/imu/data";
-          this->declare_parameter("heading_noe/imu_topic", imu_topic);
+          this->declare_parameter("heading_node/imu_topic", imu_topic);
           //nh_.getParam("/heading_node/odometry_topic", odometry_topic);
-          odometry_topic = "/odom";
+          odometry_topic = "/antobot_ant/odom";
           this->declare_parameter("heading_node/odometry_topic", odometry_topic);
           //nh_.getParam("/heading_node/wheel_odometry_topic", wheelodometry_topic);
-          wheelodometry_topic = "/antobot_robot/odom";
+          wheelodometry_topic = "/antobot_ant/odom";
           this->declare_parameter("heading_node/wheel_odometry_topic", wheelodometry_topic);
           //nh_.param<bool>("/simulation", sim, false);
 
+          sim = true;
           rtk_target_status = 3; // rtk status is 3 in 3D fixed mode
           if (sim){
               rtk_target_status = 0; // in simulation, gps status is always 0
@@ -224,7 +225,7 @@ class AntobotHeading : public rclcpp::Node
           sub_wheel_odom = this->create_subscription<nav_msgs::msg::Odometry>(wheelodometry_topic, 10, std::bind(&AntobotHeading::wheelOdomCallback,this,_1));
           sub_costmap = this->create_subscription<nav_msgs::msg::OccupancyGrid>("/costmap_node/costmap/costmap", 10, std::bind(&AntobotHeading::costmapCallback,this,_1));
           sub_footprint = this->create_subscription<geometry_msgs::msg::PolygonStamped>("/costmap_node/costmap/footprint", 10, std::bind(&AntobotHeading::footprintCallback,this,_1));
-          sub_cmd_vel = this->create_subscription<geometry_msgs::msg::Twist>("/antobot_robot/cmd_vel", 10, std::bind(&AntobotHeading::cmdVelCallback,this, _1));
+          sub_cmd_vel = this->create_subscription<geometry_msgs::msg::Twist>("/antobot_ant/cmd_vel", 10, std::bind(&AntobotHeading::cmdVelCallback,this, _1));
           sub_heading = this->create_subscription<std_msgs::msg::Float64>("am_heading_robot", 10, std::bind(&AntobotHeading::headingCallback,this,_1));
           
           // Publisher
@@ -399,8 +400,9 @@ class AntobotHeading : public rclcpp::Node
           // Robot wheel odometry's linear x should be larger than lin_tol and the imu angular z velocity should be smaller than angular_zero_tol.
           // direction is set to true when the robot is moving forward.
           // Returns: True if the start GPS point is saved, False if the robot velcoity didn't meet the conditons and failed to save the start GPS point.
-          double vel = wheel_odom_v; 
+          double vel = wheel_odom_v;
           if ((abs(imu_ang_vel_z) < angular_zero_tol) && (abs(vel) > lin_tol)&& (abs(robot_cmd_vel.linear.x)>lin_tol)){
+              RCLCPP_INFO(this->get_logger(), "Saving starting GPS");
               gps_start.clear();
               gps_start.push_back(utm_x);
               gps_start.push_back(utm_y); // utm zone is not used for calculation - check needed
@@ -501,6 +503,7 @@ class AntobotHeading : public rclcpp::Node
             
             while (true){
                 rclcpp::spin_some(nh_global_);
+                //RCLCPP_INFO(this->get_logger(), "Robot in state %d", state);
                 if (! dual_gps && hmi_auto_button_pressed && (state != 3)){ // to prevent a bug that makes robot drive 1m more after finishing calibration - possibly due to hmi button being pressed for a longer time. 
                     hmi_auto_button_pressed = false; 
                     // update HMI progress : state 2 - In auto calibration
