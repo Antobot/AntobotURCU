@@ -17,8 +17,10 @@
 #include <cmath>
 
 #include "rclcpp/rclcpp.hpp"
-#include <geodesy/utm.h>
-#include <geographic_msgs/msg/geo_point.hpp>
+#include "rclcpp/executors.hpp"
+//#include <geodesy/utm.h>
+//#include <geographic_msgs/msg/geo_point.hpp>
+#include <navsat_conversions.h>
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <std_msgs/msg/u_int8.hpp>
@@ -133,7 +135,7 @@ class AntobotHeading : public rclcpp::Node
         //rclcpp::TimerBase imu_pub_timer;
         
         // Clients
-        //rclcpp::Client<std_srvs::srv::Trigger> ekf_srv;
+        rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr ekf_cli;
         rclcpp::Client<antobot_devices_msgs::srv::ProgressUpdate>::SharedPtr hmi_cli;
         
         // Services
@@ -197,12 +199,16 @@ class AntobotHeading : public rclcpp::Node
           // Read parameters to set the topic names - need new method for ROS2!
           //nh_.getParam("/heading_node/gps_topic", gps_topic);
           gps_topic = "antobot_gps";
+          this->declare_parameter("/heading_node/gps_topic", gps_topic);
           //nh_.getParam("/heading_node/imu_topic", imu_topic);
           imu_topic = "/imu/data";
+          this->declare_parameter("heading_noe/imu_topic", imu_topic);
           //nh_.getParam("/heading_node/odometry_topic", odometry_topic);
           odometry_topic = "/odom";
+          this->declare_parameter("heading_node/odometry_topic", odometry_topic);
           //nh_.getParam("/heading_node/wheel_odometry_topic", wheelodometry_topic);
           wheelodometry_topic = "/antobot_robot/odom";
+          this->declare_parameter("heading_node/wheel_odometry_topic", wheelodometry_topic);
           //nh_.param<bool>("/simulation", sim, false);
 
           rtk_target_status = 3; // rtk status is 3 in 3D fixed mode
@@ -229,17 +235,21 @@ class AntobotHeading : public rclcpp::Node
           pub_switch = this->create_publisher<std_msgs::msg::UInt8>("/antobot/teleop/switch_mode", 10);
           
           // Clients
-          auto ekf_srv = this->create_client<std_srvs::srv::Trigger>("launch_ekf"); // launch ekf nodes once the initial calibration is done
+          ekf_cli = this->create_client<std_srvs::srv::Trigger>("launch_ekf"); // launch ekf nodes once the initial calibration is done
           hmi_cli = this->create_client<antobot_devices_msgs::srv::ProgressUpdate>("/calibration_HMI/progressUpdate"); // update progress in HMI bridge
           
           // Service - currently causes large build error!
-          //auto hmi_calibration_srv = this->create_service<antobot_devices_msgs::srv::ProgressUpdate>("/calibration/progressUpdate", &AntobotHeading::hmiService);
+          // auto hmi_calibration_srv = this->create_service<antobot_devices_msgs::srv::ProgressUpdate>("/calibration/progressUpdate", &AntobotHeading::hmiService);
           
           // Timer
           auto auto_calibration_timer = this->create_wall_timer(std::chrono::seconds(15), std::bind(&AntobotHeading::autoCalibrate, this)); // every 15 secs # was 30 sec
           auto imu_pub_timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AntobotHeading::publishNewIMU, this)); // 20Hz 
         }
 
+        
+        
+        
+        
         void autoCalibrate(){
           // Description: Function that is called every 30 seconds to check if the calibration is needed. 
           // In the while loop, several conditions are checked and if theses conditions are met within 20 seconds, the new imu_offset is calculated (calibration)
@@ -254,7 +264,7 @@ class AntobotHeading : public rclcpp::Node
               RCLCPP_INFO(this->get_logger(),"auto calibration checking started");
               int state = 0;
               while(true){
-                  //ros::spinOnce();
+                  //rclcpp::spin_some(this);
                   if (state == 0){ // Check rtk status and ekf odometry
                       //if (rtk_status == rtk_target_status && odometry_received){
                       if (rtk_status == rtk_target_status && odometry_received){   //1 = float; 3 = fix
@@ -461,27 +471,111 @@ class AntobotHeading : public rclcpp::Node
           }
         }
 
-        void checkInputs(void)
+        void initialCalibration(rclcpp::Node::SharedPtr nh_)
+        {
+            // Description: Function that is called once in the main function. When all the required topics are recieved (self.checkInputs)
+            // this function performs the initial calibration. In the while loop, the starting gps postion is saved and when the 
+            // Calibration conditions are met, the imu_offset is calculated. 
+            // Check if all input toics are being published 
+            checkInputs(nh_);
+            int state = 1;
+            
+            // update HMI progress : state 1 - ready for calibration
+            auto hmi_req = std::make_shared<antobot_devices_msgs::srv::ProgressUpdate::Request>();
+            hmi_req->progress_code = 1;
+            auto hmi_res1 = hmi_cli->async_send_request(hmi_req);
+            RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 1 (ready for calibration)");
+            if (dual_gps){
+                rclcpp::sleep_for(std::chrono::nanoseconds(200000000)); // prevent instant HMI screen change
+                RCLCPP_INFO(this->get_logger(), "Heading calibration using dual gps");
+                while (dualGPSHeadingCalibration()== false){
+                    rclcpp::sleep_for(std::chrono::nanoseconds(50000000));
+                    rclcpp::spin_some(nh_); // Initial Calibration runs before spin() in main loop
+                };
+                state = 3; 
+            }
+            
+            while (true){
+                rclcpp::spin_some(nh_);
+                if (! dual_gps && hmi_auto_button_pressed && (state != 3)){ // to prevent a bug that makes robot drive 1m more after finishing calibration - possibly due to hmi button being pressed for a longer time. 
+                    hmi_auto_button_pressed = false; 
+                    // update HMI progress : state 2 - In auto calibration
+                    auto hmi_req = std::make_shared<antobot_devices_msgs::srv::ProgressUpdate::Request>();
+                    hmi_req->progress_code = 2;
+                    auto result = hmi_cli->async_send_request(hmi_req);
+                    RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 2 (In auto calibration) - Robot will move forward");
+                    state = 4;
+                } // If moving for set distance fail - send fail progress 4
+                if (state == 1){
+                    // moving forward/backward, no angular : set start gps point
+                    if (saveStartGPS()){
+                        state = 2;
+                    }
+                }
+                else if (state == 2){
+                    state = checkCondition(); // returns the state
+                }
+                else if (state == 3){ // calibration satisfied
+                    sensor_msgs::msg::NavSatFix gpsMsg;
+                    gpsMsg.header.stamp = this->now();
+                    gpsMsg.header.frame_id = gps_frame;
+                    GeonavTransform::NavsatConversions::UTMtoLL(gps_end[1],gps_end[0],utm_zone,gpsMsg.latitude,gpsMsg.longitude);
+                    
+                    this->declare_parameter("/GPS_origin/latitude", gpsMsg.latitude);
+                    this->declare_parameter("/GPS_origin/longitude", gpsMsg.longitude);
+                    break;
+                }
+                else if (state ==4){ // auto calibration
+                    state = autoCalibration_hmi(nh_); // return 3 when success, return to 1 when failed
+                }
+                rclcpp::sleep_for(std::chrono::nanoseconds(10000000));
+            }
+            RCLCPP_DEBUG(this->get_logger(), "gps_yaw is %f", gps_yaw); 
+            rclcpp::spin_some(nh_);
+            tf2::Quaternion quat_tf;
+            // Convert  ROS Quaternion to tf2 Quaternion msg
+            tf2::convert(q_imu , quat_tf);
+            // Convert from Quaternion to euler
+            std::vector<double> euler_angles = eulerFromQuat(quat_tf); // result[2] is yaw angle
+            // imu_yaw + imu_offset = gps_yaw
+            imu_offset = calculateDifference(gps_yaw, euler_angles[2]); // difference between orientations from imu and gps
+            // ROS_DEBUG("calibration successful (offset = %f degs)", imu_offset/M_PI*180.0); // wrt map x frame
+            // Let heading launcher know the inital calibration is finished 
+            imu_calibration_status = 1;
+            std_msgs::msg::UInt8 msg;
+            msg.data = imu_calibration_status;
+            pub_calib->publish(msg);
+            RCLCPP_INFO(this->get_logger(), "MV2100: Initial calibration finished, (offset = %f degs)", imu_offset/M_PI*180.0);
+            // update HMI progress : state 3 - calibration success
+            hmi_req->progress_code = 3;
+            auto hmi_res2 = hmi_cli->async_send_request(hmi_req);
+            RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 3 (ready for job)");
+            auto ekf_req = std::make_shared<std_srvs::srv::Trigger::Request>();
+            auto ekf_res1 = ekf_cli->async_send_request(ekf_req);
+        }
+        
+        void checkInputs(rclcpp::Node::SharedPtr nh_)
         {
           // Description: Check if the imu, gps data are recieved and check if the RTK status is fixed mode value
           while ((!imu_received) || (!gps_received)){
             RCLCPP_INFO(this->get_logger(), "Waiting for initial imu and gps data");
             rclcpp::sleep_for(std::chrono::nanoseconds(100000000));
-            //ros::spinOnce(); // Initial Calibration runs before spin() in main loop
+            rclcpp::spin_some(nh_); // Initial Calibration runs before spin() in main loop
+                                 // spin_some may need to be replaced by spin_all
           }
               
           RCLCPP_INFO(this->get_logger(), "IMU and gps value received, check RTK status");
           while (rtk_status != rtk_target_status){
               RCLCPP_INFO(this->get_logger(), "Waiting for RTK status to become %d",rtk_target_status);
               rclcpp::sleep_for(std::chrono::nanoseconds(100000000));
-              //ros::spinOnce();
+              rclcpp::spin_some(nh_);
           }
               
           // RCLCPP_INFO(this->get_logger(), "RTK status is %d",rtk_target_status);
           while (dual_gps && !heading_received){
               RCLCPP_INFO(this->get_logger(), "Waiting for dual GPS heading to be received");
               rclcpp::sleep_for(std::chrono::nanoseconds(1000000000));
-              //ros::spinOnce();
+              rclcpp::spin_some(nh_);
           }
               
           RCLCPP_INFO(this->get_logger(), "GPS, IMU, RTK all ready - start calibration");
@@ -505,7 +599,7 @@ class AntobotHeading : public rclcpp::Node
           return angle - M_PI;  // Shift to the range [-pi, pi]
         }
 
-        double autoCalibration_hmi(void)
+        double autoCalibration_hmi(rclcpp::Node::SharedPtr nh_)
         {
           // auto calibration triggered by HMI button
     
@@ -536,7 +630,7 @@ class AntobotHeading : public rclcpp::Node
                   break;
               }
               // TODO: Fail if joystick/teleop is triggered - back to state 1 & pub 4
-              // ros::spinOnce(); 
+              rclcpp::spin_some(nh_); 
               // check obstacle - if True, don't publish cmd_vel 
               if (checkObstacle()){
                   RCLCPP_INFO(this->get_logger(), "HMI auto-calibration: Obstacle found - Cmd vel 0.0");
@@ -555,7 +649,7 @@ class AntobotHeading : public rclcpp::Node
               }
               pub_cmd_vel->publish(tmp);   
               rclcpp::sleep_for(std::chrono::nanoseconds(1000000000));
-              //ros::spinOnce();
+              rclcpp::spin_some(nh_);
 
               // Check the distance
               gps_end.clear();
@@ -668,17 +762,7 @@ class AntobotHeading : public rclcpp::Node
         {
           // Description: GPS callback function that gets utm coordinates(from lat, long values) and rts status
           // UTMNorthing, UTMEasting, UTMZone
-          // LLtoUTM(msg.latitude, msg.longitude, utm_y, utm_x, utm_zone); //convert from gps to utm coordinates 
-
-          geographic_msgs::msg::GeoPoint geo_pt;
-          geo_pt.latitude = msg.latitude;
-          geo_pt.longitude = msg.longitude;
-          geo_pt.altitude = msg.altitude;
-
-          //geodesy::UTMPoint utm_pt;
-          //fromMsg(geo_pt, utm_pt);
-          //utm_y = utm_pt.easting;
-          //utm_x = utm_pt.northing;
+          GeonavTransform::NavsatConversions::LLtoUTM(msg.latitude, msg.longitude, utm_y, utm_x, utm_zone); //convert from gps to utm coordinates 
 
           rtk_status = msg.status.status;
           if (!gps_received){
@@ -763,16 +847,10 @@ class AntobotHeading : public rclcpp::Node
 
 int main(int argc, char** argv){
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<AntobotHeading>());
+  rclcpp::Node::SharedPtr heading_node = std::make_shared<AntobotHeading>();
+  rclcpp::spin(heading_node);
 
   rclcpp::shutdown();
-
-  //ros::init(argc, argv, "heading_node", ros::init_options::NoSigintHandler);
-  //ros::NodeHandle nh;
-
-  
-
-  //ros::spin();
 
   return(0);
 }

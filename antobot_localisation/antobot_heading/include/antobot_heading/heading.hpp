@@ -16,8 +16,8 @@
 
 
 #include "rclcpp/rclcpp.hpp"
-#include <geodesy/utm.h>
-#include <geographic_msgs/msg/geo_point.hpp>
+//#include <geodesy/utm.h>
+//#include <geographic_msgs/msg/geo_point.hpp>
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <std_msgs/msg/u_int8.hpp>
