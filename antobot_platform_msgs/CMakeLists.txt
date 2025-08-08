@@ -10,16 +10,25 @@ find_package(ament_cmake REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 find_package(std_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
     "msg/Float32Array.msg"
     "msg/UInt8Array.msg"
     "msg/UInt16Array.msg"
+
     "msg/VoxelGrid.msg"
     "srv/SoftShutdown.srv"
     "srv/setSafetyLevel.srv"
-  DEPENDENCIES std_msgs 
+
+
+    "msg/Bool.msg"
+    "msg/CanBridge.msg"
+
+
+  DEPENDENCIES std_msgs geometry_msgs
+
 )
 
 if(BUILD_TESTING)
