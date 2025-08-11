@@ -19,6 +19,7 @@
 
 
 import sys
+import os
 import yaml
 import rclpy
 from pathlib import Path
@@ -31,6 +32,8 @@ from launch.actions import IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+
+from ament_index_python.packages import get_package_share_directory
 
 from launch_ros.actions import Node
 
@@ -164,6 +167,20 @@ class AntobotSWNode:
         else:
             return "Inactive"
 
+
+class Launchfile:
+    def __init__(self, name_arg, package_arg, exec_arg):
+        self._name = name_arg
+        self._package = get_package_share_directory(package_arg)
+        self._exec = exec_arg
+
+    def include_launch(self):
+
+        launch_desc = IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(os.path.join(self._package, 'launch', self._exec))
+        )
+
+        return launch_desc
 
 def main(args):
     
