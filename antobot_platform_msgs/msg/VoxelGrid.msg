@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-Header header
-=======
 std_msgs/Header header
->>>>>>> f58cdb4 (add vocelgrid msg)
 uint32[] data
 geometry_msgs/Point32 origin
 geometry_msgs/Vector3 resolutions

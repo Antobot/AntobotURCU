@@ -20,7 +20,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
     "msg/VoxelGrid.msg"
     "srv/SoftShutdown.srv"
-    "srv/setSafetyLevel.srv"
+    "srv/SetSafetyLevel.srv"
 
 
     "msg/Bool.msg"
