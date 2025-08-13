@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>antobot_ekf</name>
+  <name>antobot_ekf_noetic</name>
   <version>0.0.0</version>
   <description>The antobot_ekf package</description>
   <maintainer email="soyoung.kim@antobot.ai">So Young Kim</maintainer>

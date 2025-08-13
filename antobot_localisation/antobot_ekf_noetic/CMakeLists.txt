@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(antobot_ekf)
+project(antobot_ekf_noetic)
 
 find_package(catkin REQUIRED COMPONENTS
   nav_msgs
