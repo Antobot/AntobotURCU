@@ -209,7 +209,7 @@ class AntobotHeading : public rclcpp::Node
           odometry_topic = "/antobot_ant/odom";
           this->declare_parameter("heading_node/odometry_topic", odometry_topic);
           //nh_.getParam("/heading_node/wheel_odometry_topic", wheelodometry_topic);
-          wheelodometry_topic = "/antobot_ant/odom";
+          wheelodometry_topic = "/antobot/robot/odom";
           this->declare_parameter("heading_node/wheel_odometry_topic", wheelodometry_topic);
           //nh_.param<bool>("/simulation", sim, false);
 
@@ -225,7 +225,7 @@ class AntobotHeading : public rclcpp::Node
           sub_wheel_odom = this->create_subscription<nav_msgs::msg::Odometry>(wheelodometry_topic, 10, std::bind(&AntobotHeading::wheelOdomCallback,this,_1));
           sub_costmap = this->create_subscription<nav_msgs::msg::OccupancyGrid>("/costmap_node/costmap/costmap", 10, std::bind(&AntobotHeading::costmapCallback,this,_1));
           sub_footprint = this->create_subscription<geometry_msgs::msg::PolygonStamped>("/costmap_node/costmap/footprint", 10, std::bind(&AntobotHeading::footprintCallback,this,_1));
-          sub_cmd_vel = this->create_subscription<geometry_msgs::msg::Twist>("/antobot_ant/cmd_vel", 10, std::bind(&AntobotHeading::cmdVelCallback,this, _1));
+          sub_cmd_vel = this->create_subscription<geometry_msgs::msg::Twist>("/antobot/robot/cmd_vel", 10, std::bind(&AntobotHeading::cmdVelCallback,this, _1));
           sub_heading = this->create_subscription<std_msgs::msg::Float64>("am_heading_robot", 10, std::bind(&AntobotHeading::headingCallback,this,_1));
           
           // Publisher
