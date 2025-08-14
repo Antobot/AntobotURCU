@@ -140,7 +140,7 @@ class AntobotSWNode:
 
         """
         # Takes the description and joint angles as inputs and publishes the 3D poses of the robot links
-        self._node = Node(package=self._package, executable=self._executable, name=self._name, output='both')
+        self._node = Node(package=self._package, executable=self._executable, name=self._name, output='log')
         return self._node
 
     def launch(self, launcher):
