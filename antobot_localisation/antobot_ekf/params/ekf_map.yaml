@@ -1,6 +1,6 @@
-ekf_node:
+ekfMap_node:
   ros__parameters:
-    frequency: 30
+    frequency: 30.0
     sensor_timeout: 10.0
     two_d_mode: true
     transform_time_offset: 0.1
@@ -37,7 +37,7 @@ ekf_node:
     odom0_relative: false
 
     # wheel odometry
-    odom1: /antobot_robot/odom
+    odom1: /antobot/robot/odometry
 
     odom1_config: [false, false,  false,
                   false, false, false,

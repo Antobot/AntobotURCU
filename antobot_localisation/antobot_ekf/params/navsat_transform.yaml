@@ -1,6 +1,6 @@
 navsat_transform_node:
   ros__parameters:
-    frequency: 30 
+    frequency: 30.0 
     delay: 3.0
     magnetic_declination_radians: 0 
     yaw_offset: 0 
@@ -10,5 +10,8 @@ navsat_transform_node:
     publish_filtered_gps: true
     use_odometry_yaw: false
     wait_for_datum: false
+    gps_topic: /antobot_gps
+    odom_topic: /odometry/filtered
+    imu_topic: /imu/data_corrected
 
 
