@@ -133,8 +133,8 @@ class AntobotHeading : public rclcpp::Node
         rclcpp::Publisher<std_msgs::msg::UInt8>::SharedPtr pub_switch;
         
         // Timer
-        //rclcpp::TimerBase auto_calibration_timer;
-        //rclcpp::TimerBase imu_pub_timer;
+        rclcpp::TimerBase::SharedPtr auto_calibration_timer_;
+        rclcpp::TimerBase::SharedPtr imu_pub_timer_;
         
         // Clients
         rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr ekf_cli;
@@ -206,10 +206,10 @@ class AntobotHeading : public rclcpp::Node
           imu_topic = "/imu/data";
           this->declare_parameter("heading_node/imu_topic", imu_topic);
           //nh_.getParam("/heading_node/odometry_topic", odometry_topic);
-          odometry_topic = "/antobot_ant/odom";
+          odometry_topic = "/odometry/filtered";
           this->declare_parameter("heading_node/odometry_topic", odometry_topic);
           //nh_.getParam("/heading_node/wheel_odometry_topic", wheelodometry_topic);
-          wheelodometry_topic = "/antobot/robot/odom";
+          wheelodometry_topic = "/antobot/robot/odometry";
           this->declare_parameter("heading_node/wheel_odometry_topic", wheelodometry_topic);
           //nh_.param<bool>("/simulation", sim, false);
 
@@ -245,8 +245,8 @@ class AntobotHeading : public rclcpp::Node
           // auto hmi_calibration_srv = this->create_service<antobot_devices_msgs::srv::ProgressUpdate>("/calibration/progressUpdate", &AntobotHeading::hmiService);
           
           // Timer
-          auto auto_calibration_timer = this->create_wall_timer(std::chrono::seconds(15), std::bind(&AntobotHeading::autoCalibrate, this)); // every 15 secs # was 30 sec
-          auto imu_pub_timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AntobotHeading::publishNewIMU, this)); // 20Hz 
+          auto_calibration_timer_ = this->create_wall_timer(std::chrono::seconds(15), std::bind(&AntobotHeading::autoCalibrate, this)); // every 15 secs # was 30 sec
+          imu_pub_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AntobotHeading::publishNewIMU, this)); // 20Hz 
         }
 
         
@@ -254,9 +254,9 @@ class AntobotHeading : public rclcpp::Node
         void autoCalibrate(){
           // Description: Function that is called every 30 seconds to check if the calibration is needed. 
           // In the while loop, several conditions are checked and if theses conditions are met within 20 seconds, the new imu_offset is calculated (calibration)
-          
+          RCLCPP_INFO(this->get_logger(), "AutoCalibration called");
           nh_global_ = this->get_node_base_interface();
-          RCLCPP_DEBUG(this->get_logger(), "AutoCalibration called");
+          
           rclcpp::Time started_time =this->now();
           if (imu_calibration_status == 1 && odometry_received){
               RCLCPP_INFO(this->get_logger(),"auto calibration called but skip one time"); // Since the initial calibration was done recently
@@ -266,7 +266,7 @@ class AntobotHeading : public rclcpp::Node
               RCLCPP_INFO(this->get_logger(),"auto calibration checking started");
               int state = 0;
               while(true){
-                  rclcpp::spin_some(nh_global_);
+                  //rclcpp::spin_some(nh_global_);
                   if (state == 0){ // Check rtk status and ekf odometry
                       //if (rtk_status == rtk_target_status && odometry_received){
                       if (rtk_status == rtk_target_status && odometry_received){   //1 = float; 3 = fix
@@ -326,7 +326,7 @@ class AntobotHeading : public rclcpp::Node
               }
           }
           else{
-              RCLCPP_DEBUG(this->get_logger(), "auto calibration called but ignored - Do initial calibration first!");
+              RCLCPP_INFO(this->get_logger(), "auto calibration called but ignored - Do initial calibration first!");
           }
         }
 
@@ -567,7 +567,7 @@ class AntobotHeading : public rclcpp::Node
 
           // Description: Check if the imu, gps data are recieved and check if the RTK status is fixed mode value
           while ((!imu_received) || (!gps_received)){
-            RCLCPP_INFO(this->get_logger(), "Waiting for initial imu and gps data");
+            RCLCPP_INFO(this->get_logger(), "Waiting for initial imu and gps data - new");
             rclcpp::sleep_for(std::chrono::nanoseconds(100000000));
             rclcpp::spin_some(nh_global_); // Initial Calibration runs before spin() in main loop
                                  // spin_some may need to be replaced by spin_all
@@ -859,10 +859,12 @@ class AntobotHeading : public rclcpp::Node
 
 int main(int argc, char** argv){
   rclcpp::init(argc, argv);
-  rclcpp::Node::SharedPtr heading_node = std::make_shared<AntobotHeading>();
-  rclcpp::spin(heading_node);
-
+  auto node = std::make_shared<AntobotHeading>();
+  rclcpp::executors::MultiThreadedExecutor exec;
+  exec.add_node(node);
+  exec.spin();
   rclcpp::shutdown();
+  return 0;
 
   return(0);
 }

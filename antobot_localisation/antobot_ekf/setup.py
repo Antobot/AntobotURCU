@@ -27,6 +27,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'remap_gazebo_wheel_odom = antobot_ekf.remap_gazebo_wheel_odom:main',
         ],
     },
 )
