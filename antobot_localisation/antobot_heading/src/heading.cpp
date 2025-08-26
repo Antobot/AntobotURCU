@@ -105,7 +105,7 @@ namespace heading
         // Subscribers
         sub_gps = nh_.subscribe<sensor_msgs::NavSatFix>(gps_topic, 100, &heading::gpsCallback,this);
         sub_imu = nh_.subscribe<sensor_msgs::Imu>(imu_topic, 100, &heading::imuCallback,this);
-        sub_odometry = nh_.subscribe<nav_msgs::Odometry>(odometry_topic, 100, &heading::odometryCallback,this);
+        //sub_odometry = nh_.subscribe<nav_msgs::Odometry>(odometry_topic, 100, &heading::odometryCallback,this);
         sub_wheel_odom = nh_.subscribe<nav_msgs::Odometry>(wheelodometry_topic, 100, &heading::wheelOdomCallback,this);
         sub_costmap = nh_.subscribe<nav_msgs::OccupancyGrid>("/costmap_node/costmap/costmap", 100, &heading::costmapCallback,this);
         sub_footprint = nh_.subscribe<geometry_msgs::PolygonStamped>("/costmap_node/costmap/footprint", 100, &heading::footprintCallback,this);
@@ -559,7 +559,7 @@ namespace heading
         ROS_DEBUG("AutoCalibration called");
         ros::Time started_time =ros::Time::now();
 
-        if (imu_calibration_status == 1 && odometry_received){
+        if (imu_calibration_status == 1){ //== 1 && odometry_received){
             ROS_INFO("auto calibration called but skip one time"); // Since the initial calibration was done recently
             imu_calibration_status = 2;
         }  
@@ -570,8 +570,7 @@ namespace heading
             while(true){
                 ros::spinOnce();
                 if (state == 0){ // Check rtk status and ekf odometry
-                    //if (rtk_status == rtk_target_status && odometry_received){
-                    if (rtk_status == rtk_target_status && odometry_received){   //1 = float; 3 = fix
+                    if (rtk_status == rtk_target_status){ //&& odometry_received){   //1 = float; 3 = fix
                         if (dual_gps){ // dual GPS doesn't require calculating the heading based on the GPS position
                             if (dualGPSHeadingCalibration()){
                                 state = 3;
@@ -602,13 +601,15 @@ namespace heading
                     tf2::convert(q_imu , quat_tf_imu);
                     std::vector<double> result_imu = eulerFromQuat(quat_tf_imu); // returns r,p,y
 
-                    tf2::Quaternion quat_tf_odom;
-                    tf2::convert(q_odom , quat_tf_odom);
-                    std::vector<double> result_odom = eulerFromQuat(quat_tf_odom);
+                    // tf2::Quaternion quat_tf_odom;
+                    // tf2::convert(q_odom , quat_tf_odom);
+                    // std::vector<double> result_odom = eulerFromQuat(quat_tf_odom);
 
-                    // imu_yaw + imu_offset = gps_yaw
+                    
+                    std::vector<double> result_imu_calibrated = eulerFromQuat(result_tf);
+
                     // Compare two angles in [-pi,pi] and returns signed value in radian
-                    double diff = calculateDifference(gps_yaw,result_odom[2]);
+                    double diff = calculateDifference(gps_yaw,result_imu_calibrated[2]);
                     ROS_DEBUG("diff = %f", diff);
                     double diff_deg = abs(diff*180.0/M_PI);
                     ROS_DEBUG("angle diff = %f",diff_deg);
@@ -651,7 +652,7 @@ namespace heading
             // Convert from Quaternion to euler
             std::vector<double> result = eulerFromQuat(quat_tf);
             // Add imu offset and convert back to Quaternion  
-            tf2::Quaternion result_tf =  quatFromEuler(result[0],result[1],result[2]+imu_offset);
+            result_tf =  quatFromEuler(result[0],result[1],result[2]+imu_offset);
 
             std_msgs::Float32 heading_z_msg;
             heading_z_msg.data = result[2]+imu_offset;
@@ -704,15 +705,15 @@ namespace heading
         }
     }
 
-    void heading::odometryCallback(const nav_msgs::Odometry::ConstPtr& msg){
-        // Description: EKF odometry topic callback function.
+    // void heading::odometryCallback(const nav_msgs::Odometry::ConstPtr& msg){
+    //     // Description: EKF odometry topic callback function.
+    //     // Now not used - with our current EKF setting, EKF odometry orientation is the same as calibrated imu's orientation, therfore calibrated imu is used instead.
 
-        //EKF odometry orientation is the same as calibrated imu's orientation
-        q_odom = msg->pose.pose.orientation; // value to compare with gps yaw degree
-        if (!odometry_received){
-            odometry_received = true;
-        }
-    }
+    //     q_odom = msg->pose.pose.orientation; // value to compare with gps yaw degree
+    //     if (!odometry_received){
+    //         odometry_received = true;
+    //     }
+    // }
 
     void heading::wheelOdomCallback(const nav_msgs::Odometry::ConstPtr& msg){
         // Description: Wheel odometry callback function that gets linear x velocity 

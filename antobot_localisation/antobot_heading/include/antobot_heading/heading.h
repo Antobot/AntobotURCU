@@ -68,6 +68,7 @@ namespace heading
             float imu_ang_vel_z;
             double imu_offset;
             int imu_calibration_status;
+            tf2::Quaternion result_tf;
 
             // odometry
             geometry_msgs::Quaternion q_odom;
