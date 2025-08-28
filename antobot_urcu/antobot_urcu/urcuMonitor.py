@@ -222,10 +222,10 @@ class urcuMonitor():
         if self.soft_shutdown_req == True:
             print("in the soft shutdown process")
             self.pub_soft_shutdown_req.publish(self.soft_shutdown_req)
-            try:
-                soft_shutdown_reponse = self.soft_shutdown_client(1)
-            except rclpy.ServiceException as e:
-                print("service call failed: %s" % e)
+            # try:
+            soft_shutdown_reponse = self.soft_shutdown_client(1)
+            # except rclpy.ServiceException as e:
+            #     print("service call failed: %s" % e)
 
     def loop(self,event=None): # Just a function to call all the looped code
         self.storage_management()
