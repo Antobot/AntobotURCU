@@ -1,4 +1,5 @@
 *.pyc
-antobot_lidar_odommetry/FAST_LIO/cmake-build-debug
-antobot_lidar_odommetry/FAST_LIO/Log
-antobot_lidar_odommetry/FAST_LIO/PCD
+antobot_lidar_odometry/FAST_LIO/cmake-build-debug
+antobot_lidar_odometry/FAST_LIO/Log
+antobot_lidar_odometry/FAST_LIO/PCD
+
