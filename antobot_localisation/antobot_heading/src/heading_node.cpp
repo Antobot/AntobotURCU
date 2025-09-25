@@ -242,7 +242,8 @@ class AntobotHeading : public rclcpp::Node
           hmi_cli = this->create_client<antobot_devices_msgs::srv::ProgressUpdate>("/calibration_HMI/progressUpdate"); // update progress in HMI bridge
           
           // Service - currently causes large build error!
-          // auto hmi_calibration_srv = this->create_service<antobot_devices_msgs::srv::ProgressUpdate>("/calibration/progressUpdate", &AntobotHeading::hmiService);
+          auto hmi_calibration_srv = this->create_service<antobot_devices_msgs::srv::ProgressUpdate>("/calibration/progressUpdate", 
+            std::bind(&AntobotHeading::hmiService, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
           
           // Timer
           auto_calibration_timer_ = this->create_wall_timer(std::chrono::seconds(15), std::bind(&AntobotHeading::autoCalibrate, this)); // every 15 secs # was 30 sec
