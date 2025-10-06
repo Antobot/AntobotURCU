@@ -13,33 +13,44 @@
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 
 import subprocess
-from antobot_platform_msgs.srv import softShutdown, softShutdownResponse
+from antobot_platform_msgs.srv import SoftShutdown
 import os
 import rclpy
+from rclpy.node import Node
 import time
 
 
-def softShutdownprocess(req):
-    return_msg = softShutdownResponse()
-    print("soft shutdown service callback entered!")
-    time.sleep(4) #leave time to send /antobridge/soft_shutdown_req topic to antobridge, repeat 100 times
-     
-    print("killing nodes now")
-    os.system("rosnode kill /anto_bridge")
-    return_msg.responseBool = True
-    return_msg.responseString = "Success!"
-    
-    print("will shutdown in 2 sec ")
-    time.sleep(2)
-    subprocess.run(["systemctl", "poweroff"], check=True)
-    return return_msg
+class softShutdownServer(Node):
 
-def soft_shutdown_server():
-    rclpy.init_node('soft_shutdown_server')
-    s = rclpy.Service('soft_shutdown_req', softShutdown,softShutdownprocess)
-    rclpy.spin()
+    def __init__(self):
+        super().__init__("softShutdownServer")
+        self.logger = self.get_logger()
+        self.create_service(SoftShutdown, "/antobot/soft_shutdown_req", self.softShutdownProcess)
+
+        return
+
+    def softShutdownProcess(req, res):
+
+        self.logger.info("SF1410: Soft shutdown service callback entered!")
+        time.sleep(4) #leave time to send /antobridge/soft_shutdown_req topic to antobridge, repeat 100 times
+        
+        self.logger.info("SF1410: killing nodes now")
+        os.system("rosnode kill /anto_bridge")
+        res.response_bool = True
+        res.response_string = "Success!"
+        
+        self.logger.info("SF1410: will shutdown in 2 sec ")
+        time.sleep(2)
+        subprocess.run(["systemctl", "poweroff"], check=True)
+        return res
+
+
+def main():
+    rclpy.init()
+    srv = softShutdownServer()
+    rclpy.spin(srv)
 
         
 if __name__ == '__main__': 
-    soft_shutdown_server()
+    main()
     
