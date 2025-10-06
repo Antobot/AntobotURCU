@@ -34,8 +34,9 @@ class softShutdownServer(Node):
         self.logger.info("SF1410: Soft shutdown service callback entered!")
         time.sleep(4) #leave time to send /antobridge/soft_shutdown_req topic to antobridge, repeat 100 times
         
-        self.logger.info("SF1410: killing nodes now")
-        os.system("rosnode kill /anto_bridge")
+        # self.logger.info("SF1410: killing nodes now")
+        # os.system("ros2 node kill /anto_bridge")
+        
         res.response_bool = True
         res.response_string = "Success!"
         
