@@ -30,6 +30,8 @@ find_package(sensor_msgs REQUIRED)
 find_package(livox_ros_driver2 REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
+
 
 find_package(OpenMP QUIET)
 find_package(PCL REQUIRED)
@@ -38,7 +40,12 @@ find_package(Ceres REQUIRED)
 find_package(Sophus REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
-include_directories(${CERES_INCLUDE_DIRS})
+find_package( GTSAMCMakeTools )
+find_package(GTSAM REQUIRED QUIET)
+
+include_directories(${CERES_INCLUDE_DIRS}
+        ${GTSAM_INCLUDE_DIR}
+)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}   ${OpenMP_C_FLAGS}")
@@ -49,14 +56,17 @@ set(SRC_LIST src/map_builder/commons.cpp
              src/map_builder/ikd_Tree.cpp
              src/map_builder/lidar_processor.cpp
              src/map_builder/map_builder.cpp
-             src/utils.cpp)
+             src/utils.cpp
+             src/map_builder/loop_closure.cpp
+)
 
 add_executable(antobot_lio_fast src/app/multi_thread_lio.cpp ${SRC_LIST})
-ament_target_dependencies(antobot_lio_fast rclcpp std_msgs tf2 tf2_ros nav_msgs sensor_msgs livox_ros_driver2 pcl_conversions geometry_msgs)
+ament_target_dependencies(antobot_lio_fast rclcpp std_msgs tf2 tf2_ros nav_msgs sensor_msgs livox_ros_driver2 pcl_conversions geometry_msgs visualization_msgs)
 target_link_libraries(antobot_lio_fast
   yaml-cpp
   ${PCL_LIBRARIES}
   ${CERES_LIBRARIES}
+        gtsam
 )
 
 

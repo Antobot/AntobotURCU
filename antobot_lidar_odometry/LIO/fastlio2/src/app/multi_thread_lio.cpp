@@ -206,6 +206,10 @@ private:
     nav_msgs::msg::Odometry base_odom;
     nav_msgs::msg::Odometry base_odom_last;
 
+
+    // Todo: loop closure and back-end optimization
+
+
 public:
     /**
      * @brief close all threads safety
