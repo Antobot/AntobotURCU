@@ -13,6 +13,11 @@ IMUProcessor::IMUProcessor(Config &config, std::shared_ptr<IESKF> kf) : m_config
     m_poses_cache.clear();
 }
 
+/**
+ * @brief imu init: use static imu data to initialize and estimate init pose
+ * @return bool: initialize ok?
+ * get enough imu data-> calculate acc/gyro mean-> get param of imu2lidar ->gravity align -> set cov
+ */
 bool IMUProcessor::initialize(SyncPackage &package)
 {
     m_imu_cache.insert(m_imu_cache.end(), package.imus.begin(), package.imus.end());

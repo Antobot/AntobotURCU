@@ -1,5 +1,9 @@
 #include "lidar_processor.h"
 
+#include <rclcpp/logging.hpp>
+
+#include "ceres_optimization.h"
+
 LidarProcessor::LidarProcessor(Config &config, std::shared_ptr<IESKF> kf) : m_config(config), m_kf(kf)
 {
     m_ikdtree = std::make_shared<KD_TREE<PointType>>();
@@ -256,6 +260,10 @@ void LidarProcessor::updateLossFunc(State &state, SharedState &share_data)
         share_data.b += J.transpose() * m_config.lidar_cov_inv * norm_p.intensity;
     }
 }
+
+
+
+
 
 CloudType::Ptr LidarProcessor::transformCloud(CloudType::Ptr inp, const M3D &r, const V3D &t)
 {

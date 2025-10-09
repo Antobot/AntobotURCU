@@ -27,3 +27,4 @@ public:
     static pcl::PointCloud<pcl::PointXYZINormal>::Ptr livox2PCL(const livox_ros_driver2::msg::CustomMsg::SharedPtr msg, int filter_num, double min_range = 0.5, double max_range = 20.0);
     static builtin_interfaces::msg::Time getTime(const double& sec);
 };
+

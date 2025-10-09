@@ -47,6 +47,7 @@
 #include <yaml-cpp/yaml.h>
 
 #include "../utils.h"
+#include "../threadSafety.h"
 #include "../map_builder/commons.h"
 #include "../map_builder/map_builder.h"
 
@@ -77,8 +78,7 @@ struct NodeConfig
 };
 
 /**
- * @brief 处理结果结构体
- * 用于从处理线程向发布线程传递处理结果
+ * @brief process data buffer , no copy but could move
  */
 struct ProcessResult
 {
@@ -97,97 +97,8 @@ struct ProcessResult
 };
 
 /**
- * @brief 线程安全的队列模板类
- * 用于在不同线程之间安全地传递数据
+ * @brief sensor data vector , add new data atomic to manger the new data
  */
-template<typename T>
-class ThreadSafeQueue
-{
-public:
-    ThreadSafeQueue() = default;
-
-    /**
-     * @brief 向队列中添加元素
-     * @param item 要添加的元素
-     */
-    void push(T&& item)
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        queue_.push(std::move(item));
-        condition_.notify_one();
-    }
-
-    /**
-     * @brief 从队列中取出元素（阻塞版本）
-     * @return T 队列中的元素
-     */
-    T pop()
-    {
-        std::unique_lock<std::mutex> lock(mutex_);
-        condition_.wait(lock, [this] { return !queue_.empty() || shutdown_; });
-
-        if (shutdown_ && queue_.empty()) {
-            return T{};
-        }
-
-        T result = std::move(queue_.front());
-        queue_.pop();
-        return result;
-    }
-
-    /**
-     * @brief 尝试从队列中取出元素（非阻塞版本）
-     * @param item 输出参数，存储取出的元素
-     * @return bool 是否成功取出元素
-     */
-    bool tryPop(T& item)
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (queue_.empty()) {
-            return false;
-        }
-        item = std::move(queue_.front());
-        queue_.pop();
-        return true;
-    }
-
-    /**
-     * @brief 获取队列大小
-     * @return size_t 队列中元素的数量
-     */
-    size_t size() const
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return queue_.size();
-    }
-
-    /**
-     * @brief 检查队列是否为空
-     * @return bool 队列是否为空
-     */
-    bool empty() const
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return queue_.empty();
-    }
-
-    /**
-     * @brief 关闭队列，唤醒所有等待的线程
-     */
-    void shutdown()
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        shutdown_ = true;
-        condition_.notify_all();
-    }
-
-private:
-    mutable std::mutex mutex_;
-    std::queue<T> queue_;
-    std::condition_variable condition_;
-    bool shutdown_ = false;
-};
-
 struct StateData
 {
     bool lidar_pushed = false;
@@ -195,41 +106,38 @@ struct StateData
     std::mutex lidar_mutex;
     double last_lidar_time = -1.0;
     double last_imu_time = -1.0;
+    // use deque to save buffer sensor data: lidar / imu
     std::deque<IMUData> imu_buffer;
     std::deque<std::pair<double, pcl::PointCloud<pcl::PointXYZINormal>::Ptr>> lidar_buffer;
     nav_msgs::msg::Path path;
 
-    // 新增：用于线程同步的原子变量
     std::atomic<bool> new_data_available{false};
 };
 
 class LIONode : public rclcpp::Node
 {
 public:
-    /**
-     * @brief LIONode构造函数 - 初始化多线程激光雷达惯性里程计节点
-     */
-    LIONode() : rclcpp::Node("antobot_lidar_odom"), shutdown_requested_(false)
+    LIONode() :
+    rclcpp::Node("antobot_lidar_odom", "antobot_lidar_odom", rclcpp::NodeOptions()),
+    shutdown_requested_(false)
     {
         RCLCPP_INFO(this->get_logger(), "Multi-threaded LIO Node Started");
         loadParameters();
 
-        // 订阅IMU数据
+        // Subscribe topic
         m_imu_sub = this->create_subscription<sensor_msgs::msg::Imu>(
             m_node_config.imu_topic, 100,
             std::bind(&LIONode::imuCB, this, std::placeholders::_1));
 
-        // 订阅激光雷达数据
         m_lidar_sub = this->create_subscription<livox_ros_driver2::msg::CustomMsg>(
             m_node_config.lidar_topic, 10,
             std::bind(&LIONode::lidarCB, this, std::placeholders::_1));
 
-        // 订阅轮式里程计数据
         m_wheel_odom_sub = this->create_subscription<nav_msgs::msg::Odometry>(
             m_node_config.wheel_odometry_topic, 10,
             std::bind(&LIONode::wheelOdomCB, this, std::placeholders::_1));
 
-        // 发布者初始化
+        // publisher topic
         m_body_cloud_pub = this->create_publisher<sensor_msgs::msg::PointCloud2>("body_cloud", 10);
         m_world_cloud_pub = this->create_publisher<sensor_msgs::msg::PointCloud2>("world_cloud", 10);
         m_path_pub = this->create_publisher<nav_msgs::msg::Path>("fast_lio_path", 10);
@@ -243,38 +151,34 @@ public:
         m_state_data.path.poses.clear();
         m_state_data.path.header.frame_id = m_node_config.world_frame;
 
-        // 初始化核心算法组件
+        // init IESKF and map_builder
         m_kf = std::make_shared<IESKF>();
         m_builder = std::make_shared<MapBuilder>(m_builder_config, m_kf);
 
-        // 启动处理线程
         processing_thread_ = std::thread(&LIONode::processingThreadFunction, this);
 
-        // 启动发布线程
         publishing_thread_ = std::thread(&LIONode::publishingThreadFunction, this);
 
-        // 使用较高频率的定时器来检查新数据
+        // use high frequency check sensor data
         m_timer = this->create_wall_timer(
             10ms, std::bind(&LIONode::timerCB, this));
 
         RCLCPP_INFO(this->get_logger(), "Multi-threaded LIO Node initialization completed");
     }
 
-    /**
-     * @brief 析构函数，确保线程安全退出
-     */
+
     ~LIONode()
     {
         shutdown();
     }
 
 private:
-    // 线程相关成员变量
+    // thread safety
     std::thread processing_thread_;
     std::thread publishing_thread_;
     std::atomic<bool> shutdown_requested_;
 
-    // 线程安全队列
+    // thread safety queue
     ThreadSafeQueue<SyncPackage> processing_queue_;
     ThreadSafeQueue<std::unique_ptr<ProcessResult>> result_queue_;
 
@@ -304,7 +208,7 @@ private:
 
 public:
     /**
-     * @brief 安全关闭所有线程
+     * @brief close all threads safety
      */
     void shutdown()
     {
@@ -332,7 +236,7 @@ public:
 
     void loadParameters()
     {
-        // 声明参数
+
         this->declare_parameter<std::string>("config_path", "");
 
         std::string config_path;
@@ -407,7 +311,7 @@ public:
             timestamp);
         m_state_data.last_imu_time = timestamp;
 
-        // 标记有新数据可用
+
         m_state_data.new_data_available.store(true);
     }
 
@@ -428,7 +332,6 @@ public:
         m_state_data.lidar_buffer.emplace_back(timestamp, cloud);
         m_state_data.last_lidar_time = timestamp;
 
-        // 标记有新数据可用
         m_state_data.new_data_available.store(true);
     }
 
@@ -479,20 +382,18 @@ public:
         RCLCPP_INFO(this->get_logger(), "Processing thread started");
 
         while (!shutdown_requested_.load()) {
-            // 从队列中获取待处理的数据包
+            // 从队列中拿包
             SyncPackage package = processing_queue_.pop();
 
             if (shutdown_requested_.load()) {
                 break;
             }
 
-            // 记录处理开始时间
             auto t1 = std::chrono::high_resolution_clock::now();
 
-            // 执行地图构建和状态估计（耗时操作）
+            // 主程序
             m_builder->process(package);
 
-            // 记录处理结束时间
             auto t2 = std::chrono::high_resolution_clock::now();
             double processing_time = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count() * 1000;
 
@@ -500,23 +401,19 @@ public:
                 RCLCPP_WARN(this->get_logger(), "Processing time: %.2f ms", processing_time);
             }
 
-            // 只有在建图状态下才准备发布数据
             if (m_builder->status() != BuilderStatus::MAPPING) {
                 continue;
             }
 
-            // 准备处理结果
             auto result = std::make_unique<ProcessResult>();
             result->package = std::move(package);
             result->kf = m_kf;
             result->status = m_builder->status();
             result->processing_time_ms = processing_time;
 
-            // 转换点云到机体坐标系
             result->body_cloud = m_builder->lidar_processor()->transformCloud(
                 result->package.cloud, m_kf->x().r_il, m_kf->x().t_il);
 
-            // 转换点云到世界坐标系
             result->world_cloud = m_builder->lidar_processor()->transformCloud(
                 result->package.cloud,
                 m_builder->lidar_processor()->r_wl(),
@@ -884,7 +781,6 @@ public:
 
 
 int main(int argc, char **argv) {
-    // 定义TUM格式输出文件名
     std::string filename = "odom_tum.txt";
     std::string filename1 = "wheel_odom_tum.txt";
 
@@ -906,16 +802,13 @@ int main(int argc, char **argv) {
         tum_file1.open(filename1, std::ios::out | std::ios::trunc);
     }
 
-    // 检查文件是否成功打开
     if (!tum_file.is_open() || !tum_file1.is_open()) {
         std::cerr << "Failed to open TUM files!" << std::endl;
         return -1;
     }
 
-    // 初始化ROS2
     rclcpp::init(argc, argv);
 
-    // 创建LIO节点实例
     auto node = std::make_shared<LIONode>();
 
     // 使用MultiThreadedExecutor处理回调
@@ -934,7 +827,6 @@ int main(int argc, char **argv) {
     // 确保节点安全关闭
     node->shutdown();
 
-    // 关闭文件
     if (tum_file.is_open()) {
         tum_file.close();
     }
@@ -942,7 +834,6 @@ int main(int argc, char **argv) {
         tum_file1.close();
     }
 
-    // 关闭ROS2
     rclcpp::shutdown();
 
     std::cout << "LIO Node shutdown completed" << std::endl;

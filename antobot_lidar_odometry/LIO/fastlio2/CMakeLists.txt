@@ -34,9 +34,11 @@ find_package(geometry_msgs REQUIRED)
 find_package(OpenMP QUIET)
 find_package(PCL REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(Ceres REQUIRED)
 find_package(Sophus REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
+include_directories(${CERES_INCLUDE_DIRS})
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}   ${OpenMP_C_FLAGS}")
@@ -54,6 +56,7 @@ ament_target_dependencies(antobot_lio_fast rclcpp std_msgs tf2 tf2_ros nav_msgs 
 target_link_libraries(antobot_lio_fast
   yaml-cpp
   ${PCL_LIBRARIES}
+  ${CERES_LIBRARIES}
 )
 
 

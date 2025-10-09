@@ -24,7 +24,7 @@ def generate_launch_description():
         executable="antobot_lio_fast",
         name="antobot_lio_fast",
         output="screen",
-        parameters=[config_file]
+        parameters=[{"config_path": config_file}]
     )
 
     rviz_node = Node(

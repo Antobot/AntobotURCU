@@ -1,4 +1,9 @@
 #include "map_builder.h"
+/**
+ * @brief map builder constructor
+ * @param config param
+ * @param kf IESKF ptr
+ */
 MapBuilder::MapBuilder(Config &config, std::shared_ptr<IESKF> kf) : m_config(config), m_kf(kf)
 {
     m_imu_processor = std::make_shared<IMUProcessor>(config, kf);
@@ -6,6 +11,11 @@ MapBuilder::MapBuilder(Config &config, std::shared_ptr<IESKF> kf) : m_config(con
     m_status = BuilderStatus::IMU_INIT;
 }
 
+/**
+ * @brief process SyncPackage and start slam
+ * @param SyncPackage which include imu nad lidar buffer
+ * main process ：IMU init -> lidar point undistortion -> init map -> slam
+ */
 void MapBuilder::process(SyncPackage &package)
 {
     if (m_status == BuilderStatus::IMU_INIT)
