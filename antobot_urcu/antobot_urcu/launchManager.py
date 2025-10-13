@@ -31,6 +31,7 @@ from launch.actions import DeclareLaunchArgument, OpaqueFunction, GroupAction
 from launch.actions import IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch_xml.launch_description_sources import XMLLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 
 from ament_index_python.packages import get_package_share_directory
@@ -174,9 +175,15 @@ class Launchfile:
 
     def include_launch(self):
 
-        launch_desc = IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(os.path.join(self._package, 'launch', self._exec))
-        )
+        extension = self._exec.rsplit('.',1)[-1]
+        if extension == "py":
+            launch_desc = IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(os.path.join(self._package, 'launch', self._exec))
+            )
+        elif extension == "xml": 
+            launch_desc = IncludeLaunchDescription(
+                XMLLaunchDescriptionSource(os.path.join(self._package, 'launch', self._exec))
+            )
 
         return launch_desc
 

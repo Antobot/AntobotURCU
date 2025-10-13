@@ -109,9 +109,9 @@ class urcuMonitor(Node):
             if cpu_temp_level_i == "low":
                 self.logger.info("SF1000: CPU temp low (<50)")
             if cpu_temp_level_i == "medium":
-                self.logger.warn("SF1000: CPU temp medium (>50)")
+                self.logger.warning("SF1000: CPU temp medium (>50)")
             if cpu_temp_level_i == "high":
-                self.logger.err("SF1000: CPU temp high (>60)")
+                self.logger.error("SF1000: CPU temp high (>60)")
             self.cpu_temp_level_str = cpu_temp_level_i
 
 
@@ -132,9 +132,9 @@ class urcuMonitor(Node):
             if cpu_load_i == "low":
                 self.logger.info("SF1100: CPU load low (<80%)")
             if cpu_load_i == "medium":
-                self.logger.warn("SF1100: CPU load medium (>80%)")
+                self.logger.warning("SF1100: CPU load medium (>80%)")
             if cpu_load_i == "high":
-                self.logger.err("SF1100: CPU load high (>90%)")
+                self.logger.error("SF1100: CPU load high (>90%)")
             self.cpu_load_level_str = cpu_load_i
 
     
@@ -161,9 +161,9 @@ class urcuMonitor(Node):
             if storage_level_i == 1:
                 self.logger.info("SF1200: Storage < 10 percent remaining")
             if storage_level_i == 2:
-                self.logger.warn("SF1200: Storage < 2 GB remaining")
+                self.logger.warning("SF1200: Storage < 2 GB remaining")
             if storage_level_i == 3: 
-                self.logger.err("SF1200: Storage < 1 percent remaining")
+                self.logger.error("SF1200: Storage < 1 percent remaining")
             self.storage_level = storage_level_i
 
         return self.As_bStorage
@@ -210,9 +210,9 @@ class urcuMonitor(Node):
             if battery_level_i == "medium":
                 self.logger.info("SF1300: Battery >55 percent (medium)")
             if battery_level_i == 2:
-                self.logger.warn("SF1300: Battery >30 percent (low)")
+                self.logger.warning("SF1300: Battery >30 percent (low)")
             if battery_level_i == 3: 
-                self.logger.err("SF1300: Battery <30 percent (critical)")
+                self.logger.error("SF1300: Battery <30 percent (critical)")
             self.As_sBatlvl = battery_level_i
         
         self.pub_soc.publish(self.As_uSoC)
