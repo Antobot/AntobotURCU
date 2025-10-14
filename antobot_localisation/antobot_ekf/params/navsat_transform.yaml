@@ -10,8 +10,5 @@ navsat_transform_node:
     publish_filtered_gps: true
     use_odometry_yaw: false
     wait_for_datum: false
-    gps_topic: /antobot_gps
-    odom_topic: /odometry/filtered
-    imu_topic: /imu/data_corrected
 
 

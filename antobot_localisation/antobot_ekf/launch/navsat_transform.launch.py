@@ -27,7 +27,14 @@ def generate_launch_description():
         package='robot_localization',
         executable='navsat_transform_node',
         name='navsat_transform',
-        parameters=[navsat_transform_config]
+        parameters=[navsat_transform_config],
+        remappings=[('/gps/fix', '/antobot_gps'), ('/imu', '/imu/data_corrected')],
+        arguments=[
+            '--ros-args',
+            '--log-level', 'navsat_transform:=debug',
+            '--log-level', 'robot_localization:=debug',
+        ],
+        output='screen'
     )
 
     ld = LaunchDescription()
