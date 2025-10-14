@@ -176,7 +176,7 @@ class AntobotHeading : public rclcpp::Node
           heading_received_time = this->now();
           
           // imu
-          imu_frame = "imu";
+          imu_frame = "imu_frame";
           imu_received = false;
           imu_ang_vel_z = 0;
           imu_offset = 0;
@@ -276,7 +276,7 @@ class AntobotHeading : public rclcpp::Node
                                   state = 3;
                               } // if dual gps heading is not updated - state remains 0
                               else{
-                                  rclcpp::sleep_for(std::chrono::nanoseconds(1000000000));
+                                  rclcpp::sleep_for(std::chrono::milliseconds(1000)); // TODO: whether 1s is too long?
                               }
                               
                           }
@@ -323,7 +323,7 @@ class AntobotHeading : public rclcpp::Node
                       RCLCPP_INFO(this->get_logger(), "auto calibration conditions not met - cancelled");
                       break;
                   }
-                  rclcpp::sleep_for(std::chrono::nanoseconds(1000000000));
+                  rclcpp::sleep_for(std::chrono::milliseconds(100));
               }
           }
           else{
@@ -493,10 +493,10 @@ class AntobotHeading : public rclcpp::Node
             auto hmi_res1 = hmi_cli->async_send_request(hmi_req);
             RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 1 (ready for calibration)");
             if (dual_gps){
-                rclcpp::sleep_for(std::chrono::nanoseconds(200000000)); // prevent instant HMI screen change
+                rclcpp::sleep_for(std::chrono::milliseconds(200)); // prevent instant HMI screen change
                 RCLCPP_INFO(this->get_logger(), "Heading calibration using dual gps");
                 while (dualGPSHeadingCalibration()== false){
-                    rclcpp::sleep_for(std::chrono::nanoseconds(50000000));
+                    rclcpp::sleep_for(std::chrono::milliseconds(50));
                     rclcpp::spin_some(nh_global_); // Initial Calibration runs before spin() in main loop
                 };
                 state = 3; 
@@ -536,7 +536,7 @@ class AntobotHeading : public rclcpp::Node
                 else if (state ==4){ // auto calibration
                     state = autoCalibration_hmi(); // return 3 when success, return to 1 when failed
                 }
-                rclcpp::sleep_for(std::chrono::nanoseconds(10000000));
+                rclcpp::sleep_for(std::chrono::milliseconds(10));
             }
             RCLCPP_DEBUG(this->get_logger(), "gps_yaw is %f", gps_yaw); 
             rclcpp::spin_some(nh_global_);
@@ -564,31 +564,54 @@ class AntobotHeading : public rclcpp::Node
         
         void checkInputs()
         {
-          //nh_global_ = this->get_node_base_interface();
+            //nh_global_ = this->get_node_base_interface();
 
-          // Description: Check if the imu, gps data are recieved and check if the RTK status is fixed mode value
-          while ((!imu_received) || (!gps_received)){
+            // Description: Check if the imu, gps data are recieved and check if the RTK status is fixed mode value
+
+            auto start = std::chrono::steady_clock::now();
             RCLCPP_INFO(this->get_logger(), "Waiting for initial imu and gps data - new");
-            rclcpp::sleep_for(std::chrono::nanoseconds(100000000));
-            rclcpp::spin_some(nh_global_); // Initial Calibration runs before spin() in main loop
-                                 // spin_some may need to be replaced by spin_all
-          }
-              
-          RCLCPP_INFO(this->get_logger(), "IMU and gps value received, check RTK status");
-          while (rtk_status != rtk_target_status){
-              RCLCPP_INFO(this->get_logger(), "Waiting for RTK status to become %d",rtk_target_status);
-              rclcpp::sleep_for(std::chrono::nanoseconds(100000000));
-              rclcpp::spin_some(nh_global_);
-          }
-              
-          // RCLCPP_INFO(this->get_logger(), "RTK status is %d",rtk_target_status);
-          while (dual_gps && !heading_received){
-              RCLCPP_INFO(this->get_logger(), "Waiting for dual GPS heading to be received");
-              rclcpp::sleep_for(std::chrono::nanoseconds(1000000000));
-              rclcpp::spin_some(nh_global_);
-          }
-              
-          RCLCPP_INFO(this->get_logger(), "GPS, IMU, RTK all ready - start calibration");
+            while ((!imu_received) || (!gps_received)){
+
+                auto now = std::chrono::steady_clock::now();
+                auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
+                if (elapsed > 5){
+                    start = std::chrono::steady_clock::now();
+                    RCLCPP_INFO(this->get_logger(), "Waiting for initial imu and gps data - new");
+                }
+                rclcpp::sleep_for(std::chrono::milliseconds(100));
+                rclcpp::spin_some(nh_global_); // Initial Calibration runs before spin() in main loop
+                                        // spin_some may need to be replaced by spin_all
+            }
+                
+            RCLCPP_INFO(this->get_logger(), "IMU and gps value received, check RTK status");
+
+            start = std::chrono::steady_clock::now();
+            while (rtk_status != rtk_target_status){
+                auto now = std::chrono::steady_clock::now();
+                auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
+
+                if (elapsed > 5){
+                    start = std::chrono::steady_clock::now();
+                    RCLCPP_INFO(this->get_logger(), "Waiting for RTK status to become %d",rtk_target_status);
+                }
+
+                rclcpp::sleep_for(std::chrono::milliseconds(100));
+                rclcpp::spin_some(nh_global_);
+            }
+                
+            // RCLCPP_INFO(this->get_logger(), "RTK status is %d",rtk_target_status);
+            start = std::chrono::steady_clock::now();
+            while (dual_gps && !heading_received){
+                auto now = std::chrono::steady_clock::now();
+                auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
+                if (elapsed > 5){
+                    RCLCPP_INFO(this->get_logger(), "Waiting for dual GPS heading to be received");
+                }
+                rclcpp::sleep_for(std::chrono::milliseconds(1000));
+                rclcpp::spin_some(nh_global_);
+            }
+                
+            RCLCPP_INFO(this->get_logger(), "GPS, IMU, RTK all ready - start calibration");
         }
 
         double calculateDifference(double input_a, double input_b)
