@@ -121,15 +121,8 @@ class AntobotSWNode:
         self._relaunch = True # Determines if the node should relaunch
         self._running = False # Tracks if the node should be running - not that it is
 
-
-        input_args_str = ""
-        for i in range(len(input_args)):
-            if i == 0:
-                input_args_str = input_args[i]
-            else:
-                input_args_str = input_args_str + " " + input_args[i]
-        self._input_args = input_args_str
-
+        self._input_args = input_args
+        
         self._process = None
         self._node = None
 
@@ -139,7 +132,8 @@ class AntobotSWNode:
 
         """
         # Takes the description and joint angles as inputs and publishes the 3D poses of the robot links
-        self._node = Node(package=self._package, executable=self._executable, name=self._name, output='log', respawn=True, respawn_delay=3)
+        self._node = Node(package=self._package, executable=self._executable, name=self._name, parameters=[*self._input_args],
+            output='log', respawn=True, respawn_delay=3)
         return self._node
 
     def launch(self, launcher):
