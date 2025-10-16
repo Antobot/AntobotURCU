@@ -26,7 +26,7 @@ def generate_launch_description():
     navsat_transform_node = Node(
         package='robot_localization',
         executable='navsat_transform_node',
-        name='navsat_transform',
+        name='navsat_transform_node',
         parameters=[navsat_transform_config],
         remappings=[('/gps/fix', '/antobot_gps'), ('/imu', '/imu/data_corrected')],
         arguments=[
