@@ -13,14 +13,14 @@
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 
 import subprocess
-from antobot_platform_msgs.srv import softShutdown, softShutdownResponse
+from antobot_platform_msgs.srv import SoftShutdown
 import os
 import rclpy
 import time
 
 
 def softShutdownprocess(req):
-    return_msg = softShutdownResponse()
+    return_msg = SoftShutdown.Response()
     print("soft shutdown service callback entered!")
     time.sleep(4) #leave time to send /antobridge/soft_shutdown_req topic to antobridge, repeat 100 times
      
@@ -36,7 +36,7 @@ def softShutdownprocess(req):
 
 def soft_shutdown_server():
     rclpy.init_node('soft_shutdown_server')
-    s = rclpy.Service('soft_shutdown_req', softShutdown,softShutdownprocess)
+    s = rclpy.Service('soft_shutdown_req', SoftShutdown,softShutdownprocess)
     rclpy.spin()
 
         
