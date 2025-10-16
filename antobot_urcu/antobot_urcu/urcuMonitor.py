@@ -14,22 +14,25 @@
 
 from jtop import jtop
 import shutil
-import rclpy
 import json
 import yaml
-import rospkg
+
+import rclpy
+from rclpy.node import Node
 
 from std_msgs.msg import Bool, UInt8
-from antobot_platform_msgs.msg import UInt8_Array,Float32_Array,UInt16_Array
-from antobot_platform_msgs.srv import softShutdown
+from antobot_platform_msgs.msg import UInt8Array,Float32Array,UInt16Array
+from antobot_platform_msgs.srv import SoftShutdown
 
 disk="./"
 min_gb=2
 min_percent=10
 
-class urcuMonitor():
+class urcuMonitor(Node):
 
     def __init__(self):
+        super().__init__("urcuMonitor")
+        self.logger = self.get_logger()
 
         self.jtop_ext = True    # If using this script inside of a docker ontainer, self.jtop_ext should be True
 
@@ -49,18 +52,20 @@ class urcuMonitor():
         self.storage_level = 0  # Assume there is plenty of storage remaining
         self.As_sBatlvl = "none"
 
-        self.sub_As_uBat = rclpy.Subscriber("/antobridge/Ab_uBat",UInt8_Array,self.battery_callback)
-        self.sub_soft_shutdown_button = rclpy.Subscriber('/antobridge/soft_shutdown_button',Bool,self.soft_shutdown_callback)
+        self.sub_As_uBat = self.create_subscription(UInt8_Array, "/antobridge/Ab_uBat",self.battery_callback)
+        self.sub_soft_shutdown_button = self.create_subscription(Bool, '/antobridge/soft_shutdown_button',self.soft_shutdown_callback)
 
-        self.pub_soft_shutdown_req = rclpy.Publisher("/antobridge/soft_shutdown_req", Bool,queue_size = 1)
-        self.pub_soc = rclpy.Publisher("/as/soc", UInt8, queue_size = 1)
+        self.pub_soft_shutdown_req = self.create_publisher(Bool, "/antobridge/soft_shutdown_req",1)
+        self.pub_soc = self.create_publisher(UInt8, "/antobot/urcu/soc", 1)
 
-        self.soft_shutdown_client = rclpy.ServiceProxy('soft_shutdown_req',softShutdown)
+        self.soft_shutdown_client = self.create_client(SoftShutdown, '/antobot/soft_shutdown_req')
+
+        self.timer = self.create_timer(1.0, self.loop)
 
         return
 
     def xavier_monitor(self):
-        
+
         if not self.jtop_ext:
             self.xavier_monitor_int()
         else:
@@ -71,9 +76,9 @@ class urcuMonitor():
 
     def xavier_monitor_int(self):
         #access to Jtop and read the xavier info
-        jtopstats = self.jetson.stats      
+        jtopstats = self.jetson.stats
         self.As_cputemp = jtopstats["Temp CPU"]
-        
+
         CPU1 = jtopstats["CPU1"]
         CPU2 = jtopstats["CPU2"]
         CPU3 = jtopstats["CPU3"]
@@ -81,7 +86,7 @@ class urcuMonitor():
         CPU5 = jtopstats["CPU5"]
         CPU6 = jtopstats["CPU6"]
         self.As_cpuLoad = (CPU1+CPU2+CPU3+CPU4+CPU5+CPU6)//6 #calculate the average CPU load
-    
+
     def xavier_monitor_ext(self):
 
         xavier_datafile = "/root/xavier_data/xavier_data.json"
@@ -91,7 +96,7 @@ class urcuMonitor():
                 self.As_cputemp = data['cpuTemp']
                 self.As_cpuLoad = data['cpuLoad']
         except Exception as e:
-            rclpy.loginfo("SW2122: Error while reading from file outside docker: {e}")
+            self.logger.info("SW2122: Error while reading from file outside docker: {e}")
 
     def cpu_temp_level(self):
         cpu_temp_level_i = "low"
@@ -102,11 +107,11 @@ class urcuMonitor():
 
         if cpu_temp_level_i is not self.cpu_temp_level_str:
             if cpu_temp_level_i == "low":
-                rclpy.loginfo("SF1000: CPU temp low (<50)")
+                self.logger.info("SF1000: CPU temp low (<50)")
             if cpu_temp_level_i == "medium":
-                rclpy.logwarn("SF1000: CPU temp medium (>50)")
+                self.logger.warning("SF1000: CPU temp medium (>50)")
             if cpu_temp_level_i == "high":
-                rclpy.logerr("SF1000: CPU temp high (>60)")
+                self.logger.error("SF1000: CPU temp high (>60)")
             self.cpu_temp_level_str = cpu_temp_level_i
 
 
@@ -125,22 +130,22 @@ class urcuMonitor():
 
         if cpu_load_i is not self.cpu_load_level_str:
             if cpu_load_i == "low":
-                rclpy.loginfo("SF1100: CPU load low (<80%)")
+                self.logger.info("SF1100: CPU load low (<80%)")
             if cpu_load_i == "medium":
-                rclpy.logwarn("SF1100: CPU load medium (>80%)")
+                self.logger.warning("SF1100: CPU load medium (>80%)")
             if cpu_load_i == "high":
-                rclpy.logerr("SF1100: CPU load high (>90%)")
+                self.logger.error("SF1100: CPU load high (>90%)")
             self.cpu_load_level_str = cpu_load_i
 
-    
-    def storage_management(self): 
-        #Returns True if there isn't enough disk space, False otherwise.# 
+
+    def storage_management(self):
+        #Returns True if there isn't enough disk space, False otherwise.#
         du = shutil.disk_usage(disk)
         self.As_bStorage = False
 
         # Calculate the percentage of free space
         percent_free = 100 * du.free / du.total
-        
+
         # Calculate how many free gigabytes
         gigabytes_free = du.free / (2**30)
 
@@ -154,11 +159,11 @@ class urcuMonitor():
 
         if storage_level_i is not self.storage_level:
             if storage_level_i == 1:
-                rclpy.loginfo("SF1200: Storage < 10 percent remaining")
+                self.logger.info("SF1200: Storage < 10 percent remaining")
             if storage_level_i == 2:
-                rclpy.logwarn("SF1200: Storage < 2 GB remaining")
-            if storage_level_i == 3: 
-                rclpy.logerr("SF1200: Storage < 1 percent remaining")
+                self.logger.warning("SF1200: Storage < 2 GB remaining")
+            if storage_level_i == 3:
+                self.logger.error("SF1200: Storage < 1 percent remaining")
             self.storage_level = storage_level_i
 
         return self.As_bStorage
@@ -172,24 +177,24 @@ class urcuMonitor():
         else:
             self.voltage_cnt = 0
         self.voltage_pre = self.voltage
-        
+
         if self.voltage_cnt > 5:
             if self.voltage <self.As_uBat:
                 self.As_uBat = self.voltage #low pass after continously appear 5 times
-    
+
 
     def battery_lvl(self):
         #calculate the current soc and convert it to level battery
         counter = 100
 
-        #The look up table for SOC 
+        #The look up table for SOC
         while counter >0:
-            if self.As_uBat >= 44+counter*0.106 : 
+            if self.As_uBat >= 44+counter*0.106 :
                 self.As_uSoC = counter
                 break
             counter = counter - 1
 
-        #The level convertion 
+        #The level convertion
         if self.As_uSoC >= 80:
             battery_level_i = "high"
         elif self.As_uSoC >= 55:
@@ -201,31 +206,27 @@ class urcuMonitor():
 
         if battery_level_i is not self.As_sBatlvl:
             if battery_level_i == "high":
-                rclpy.logdebug("SF1300: Battery >80 percent (high)")
+                self.logger.debug("SF1300: Battery >80 percent (high)")
             if battery_level_i == "medium":
-                rclpy.loginfo("SF1300: Battery >55 percent (medium)")
+                self.logger.info("SF1300: Battery >55 percent (medium)")
             if battery_level_i == 2:
-                rclpy.logwarn("SF1300: Battery >30 percent (low)")
-            if battery_level_i == 3: 
-                rclpy.logerr("SF1300: Battery <30 percent (critical)")
+                self.logger.warning("SF1300: Battery >30 percent (low)")
+            if battery_level_i == 3:
+                self.logger.error("SF1300: Battery <30 percent (critical)")
             self.As_sBatlvl = battery_level_i
-        
+
         self.pub_soc.publish(self.As_uSoC)
 
 
     def soft_shutdown_callback(self,soft_shutdown):  #soft shutdown button on joystick pressed
-            if soft_shutdown.data == True:
-                self.soft_shutdown_req = True
+        if soft_shutdown.data == True:
+            self.soft_shutdown_req = True
 
 
     def soft_shutdown_process(self): #send req to antobridge, call the power off service
         if self.soft_shutdown_req == True:
-            print("in the soft shutdown process")
             self.pub_soft_shutdown_req.publish(self.soft_shutdown_req)
-            # try:
             soft_shutdown_reponse = self.soft_shutdown_client(1)
-            # except rclpy.ServiceException as e:
-            #     print("service call failed: %s" % e)
 
     def loop(self,event=None): # Just a function to call all the looped code
         self.storage_management()
@@ -234,16 +235,12 @@ class urcuMonitor():
         self.soft_shutdown_process()
 
 def main():
-    rclpy.init_node ('sysMonitor') 
+    rclpy.init()
     sysMonitor= urcuMonitor()
+    rclpy.spin()
 
-    try:
-        rclpy.Timer(rclpy.Duration(1), sysMonitor.loop)  # Runs periodically without blocking
-        rclpy.spin()   
-
-    finally:
-        if not sysMonitor.jtop_ext:
-            sysMonitor.jetson.close
+    if not sysMonitor.jtop_ext:
+        sysMonitor.jetson.close
 
 if __name__ == '__main__':
     main()

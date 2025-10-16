@@ -43,7 +43,7 @@ from std_srvs.srv import Empty
 
 class ProcessListener():
 
-    def __init__():
+    def __init__(self):
         print("process listener object (dummy)")
 
 #     def process_died(self, name, exit_code):
@@ -79,7 +79,7 @@ class ProcessListener():
 
 
 class RoslaunchWrapperObject():
-    def __init__():
+    def __init__(self):
         print("roslaunch wrapper object (dummy)")
 #     # ref: https://github.com/ros/ros_comm/issues/2238
 #     def start(self):
