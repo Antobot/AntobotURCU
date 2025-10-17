@@ -52,7 +52,7 @@ class urcuMonitor(Node):
         self.storage_level = 0  # Assume there is plenty of storage remaining
         self.As_sBatlvl = "none"
 
-        self.sub_As_uBat = self.create_subscription(UInt8_Array, "/antobridge/Ab_uBat",self.battery_callback)
+        self.sub_As_uBat = self.create_subscription(UInt8Array, "/antobridge/Ab_uBat",self.battery_callback)
         self.sub_soft_shutdown_button = self.create_subscription(Bool, '/antobridge/soft_shutdown_button',self.soft_shutdown_callback)
 
         self.pub_soft_shutdown_req = self.create_publisher(Bool, "/antobridge/soft_shutdown_req",1)
