@@ -26,9 +26,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
     "msg/Bool.msg"
     "msg/CanBridge.msg"
 
-
   DEPENDENCIES std_msgs geometry_msgs
-
 )
 
 if(BUILD_TESTING)
