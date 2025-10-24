@@ -38,7 +38,6 @@ def generate_launch_description():
         name='ekfOdom_node',
         parameters=[ekf_odom_config, {'use_sim_time': use_sim_time}],
         remappings=[('/odometry/filtered', '/odometry/ekfOdom')],
-        arguments=['--ros-args', '--log-level', 'DEBUG'],
         output='screen'
     )
     ld.add_action(ekf_odom_node)
@@ -49,7 +48,6 @@ def generate_launch_description():
         executable='ekf_node',
         name='ekfMap_node',
         parameters=[ekf_map_config, {'use_sim_time': use_sim_time}],
-        arguments=['--ros-args', '--log-level', 'DEBUG'],
         output='screen'
     )
     ld.add_action(ekf_map_node)
