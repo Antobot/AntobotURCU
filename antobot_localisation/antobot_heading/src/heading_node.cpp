@@ -133,6 +133,7 @@ class AntobotHeading : public rclcpp::Node
         rclcpp::Publisher<std_msgs::msg::UInt8>::SharedPtr pub_switch;
         
         // Timer
+        rclcpp::CallbackGroup::SharedPtr callback_group;
         rclcpp::TimerBase::SharedPtr auto_calibration_timer_;
         rclcpp::TimerBase::SharedPtr imu_pub_timer_;
         
@@ -246,126 +247,127 @@ class AntobotHeading : public rclcpp::Node
             std::bind(&AntobotHeading::hmiService, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
           
           // Timer
-          auto_calibration_timer_ = this->create_wall_timer(std::chrono::seconds(15), std::bind(&AntobotHeading::autoCalibrate, this)); // every 15 secs # was 30 sec
-          imu_pub_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AntobotHeading::publishNewIMU, this)); // 20Hz 
+          callback_group = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+          auto_calibration_timer_ = this->create_wall_timer(std::chrono::seconds(15), std::bind(&AntobotHeading::autoCalibrate, this), callback_group); // every 15 secs # was 30 sec
+          imu_pub_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AntobotHeading::publishNewIMU, this), callback_group); // 20Hz 
         }
 
         
         //void autoCalibrate(rclcpp::Node::SharedPtr nh_){
         void autoCalibrate(){
-          // Description: Function that is called every 30 seconds to check if the calibration is needed. 
-          // In the while loop, several conditions are checked and if theses conditions are met within 20 seconds, the new imu_offset is calculated (calibration)
-          RCLCPP_INFO(this->get_logger(), "AutoCalibration called");
-          nh_global_ = this->get_node_base_interface();
+           // Description: Function that is called every 30 seconds to check if the calibration is needed. 
+           // In the while loop, several conditions are checked and if theses conditions are met within 20 seconds, the new imu_offset is calculated (calibration)
+            RCLCPP_INFO(this->get_logger(), "AutoCalibration called");
+            nh_global_ = this->get_node_base_interface();
           
-          rclcpp::Time started_time =this->now();
-          if (imu_calibration_status == 1 && odometry_received){
-              RCLCPP_INFO(this->get_logger(),"auto calibration called but skip one time"); // Since the initial calibration was done recently
-              imu_calibration_status = 2;
-          }  
-          else if (imu_calibration_status == 2){
-              RCLCPP_INFO(this->get_logger(),"auto calibration checking started");
-              int state = 0;
-              while(true){
-                  //rclcpp::spin_some(nh_global_);
-                  if (state == 0){ // Check rtk status and ekf odometry
-                      //if (rtk_status == rtk_target_status && odometry_received){
-                      if (rtk_status == rtk_target_status && odometry_received){   //1 = float; 3 = fix
-                          if (dual_gps){ // dual GPS doesn't require calculating the heading based on the GPS position
-                              if (dualGPSHeadingCalibration()){
-                                  state = 3;
-                              } // if dual gps heading is not updated - state remains 0
-                              else{
-                                  rclcpp::sleep_for(std::chrono::milliseconds(1000)); // TODO: whether 1s is too long?
-                              }
+            rclcpp::Time started_time =this->now();
+            if (imu_calibration_status == 1 && odometry_received){
+               RCLCPP_INFO(this->get_logger(),"auto calibration called but skip one time"); // Since the initial calibration was done recently
+               imu_calibration_status = 2;
+            }  
+            else if (imu_calibration_status == 2){
+                RCLCPP_INFO(this->get_logger(),"auto calibration checking started");
+                int state = 0;
+                while(true){
+                    //rclcpp::spin_some(nh_global_);
+                    if (state == 0){ // Check rtk status and ekf odometry
+                        //if (rtk_status == rtk_target_status && odometry_received){
+                        if (rtk_status == rtk_target_status && odometry_received){   //1 = float; 3 = fix
+                            if (dual_gps){ // dual GPS doesn't require calculating the heading based on the GPS position
+                                if (dualGPSHeadingCalibration()){
+                                    state = 3;
+                                }  // if dual gps heading is not updated - state remains 0
+                                else{
+                                    rclcpp::sleep_for(std::chrono::milliseconds(1000)); // TODO: whether 1s is too long?
+                                }
                               
-                          }
-                          else{
-                              state = 1;
-                          }
-                      }
-                  }
-                  else if (state == 1){ // Save start gps position
-                      if (saveStartGPS()){ // If the first gps position is saved
-                          state = 2;
-                      }
-                  }
-                  else if (state == 2){ // Check if the auto calibration conditions are met
-                      state= checkCondition(); // returns the state
-                  }
-                  else if (state == 3){ // Conditions met, start the calibration
-                      // gps angle calculated 
-                      RCLCPP_DEBUG(this->get_logger(), "gps angles = %f", gps_yaw);
-                      tf2::Quaternion quat_tf_imu;
-                      tf2::convert(q_imu , quat_tf_imu);
-                      std::vector<double> result_imu = eulerFromQuat(quat_tf_imu); // returns r,p,y
-                      tf2::Quaternion quat_tf_odom;
-                      tf2::convert(q_odom , quat_tf_odom);
-                      std::vector<double> result_odom = eulerFromQuat(quat_tf_odom);
-                      // imu_yaw + imu_offset = gps_yaw
-                      // Compare two angles in [-pi,pi] and returns signed value in radian
-                      double diff = calculateDifference(gps_yaw,result_odom[2]);
-                      RCLCPP_DEBUG(this->get_logger(), "diff = %f", diff);
-                      double diff_deg = abs(diff*180.0/M_PI);
-                      RCLCPP_DEBUG(this->get_logger(), "angle diff = %f",diff_deg);
-                      if (diff_deg > calib_deg){
-                          double imu_offset_tmp = calculateDifference(gps_yaw, result_imu[2]); // difference between orientations from imu and gps
-                          imu_offset = imu_offset_tmp;
-                          RCLCPP_INFO(this->get_logger(), "MV2200: Auto-calibration complete (imu offset = %f degs)", imu_offset / M_PI * 180.0);
-                      }
-                      else{
-                          RCLCPP_INFO(this->get_logger(), "auto-calibration not required %f deg",diff_deg);
-                      }
-                      break; // Auto calibration finished
-                  }
-                  double duration = (this->now()- started_time).seconds();
-                  if (duration > 10.0){ // Every time Auto calibration is called, it will check for 10 seconds. #was 20 sec
-                      RCLCPP_INFO(this->get_logger(), "auto calibration conditions not met - cancelled");
-                      break;
-                  }
-                  rclcpp::sleep_for(std::chrono::milliseconds(100));
-              }
-          }
-          else{
-              RCLCPP_INFO(this->get_logger(), "auto calibration called but ignored - Do initial calibration first!");
-          }
+                            }
+                            else{
+                                state = 1;
+                            }
+                        }
+                    }
+                    else if (state == 1){ // Save start gps position
+                        if (saveStartGPS()){ // If the first gps position is saved
+                            state = 2;
+                        }
+                    }
+                    else if (state == 2){ // Check if the auto calibration conditions are met
+                        state= checkCondition(); // returns the state
+                    }
+                    else if (state == 3){ // Conditions met, start the calibration
+                        // gps angle calculated 
+                        RCLCPP_DEBUG(this->get_logger(), "gps angles = %f", gps_yaw);
+                        tf2::Quaternion quat_tf_imu;
+                        tf2::convert(q_imu , quat_tf_imu);
+                        std::vector<double> result_imu = eulerFromQuat(quat_tf_imu); // returns r,p,y
+                        tf2::Quaternion quat_tf_odom;
+                        tf2::convert(q_odom , quat_tf_odom);
+                        std::vector<double> result_odom = eulerFromQuat(quat_tf_odom);
+                        // imu_yaw + imu_offset = gps_yaw
+                        // Compare two angles in [-pi,pi] and returns signed value in radian
+                        double diff = calculateDifference(gps_yaw,result_odom[2]);
+                        RCLCPP_DEBUG(this->get_logger(), "diff = %f", diff);
+                        double diff_deg = abs(diff*180.0/M_PI);
+                        RCLCPP_DEBUG(this->get_logger(), "angle diff = %f",diff_deg);
+                        if (diff_deg > calib_deg){
+                            double imu_offset_tmp = calculateDifference(gps_yaw, result_imu[2]); // difference between orientations from imu and gps
+                            imu_offset = imu_offset_tmp;
+                            RCLCPP_INFO(this->get_logger(), "MV2200: Auto-calibration complete (imu offset = %f degs)", imu_offset / M_PI * 180.0);
+                        }
+                        else{
+                            RCLCPP_INFO(this->get_logger(), "auto-calibration not required %f deg",diff_deg);
+                        }
+                        break; // Auto calibration finished
+                    }
+                    double duration = (this->now()- started_time).seconds();
+                    if (duration > 10.0){ // Every time Auto calibration is called, it will check for 10 seconds. #was 20 sec
+                        RCLCPP_INFO(this->get_logger(), "auto calibration conditions not met - cancelled");
+                        break;
+                    }
+                    rclcpp::sleep_for(std::chrono::milliseconds(100));
+                }
+            }
+            else{
+                RCLCPP_INFO(this->get_logger(), "auto calibration called but ignored - Do initial calibration first!");
+            }
         }
 
         void publishNewIMU(){
-          // Description: Publish calibrated imu data (/imu/dadta_coreccted) and a topic for debugging purpose (/imu/data_offset)
-          // Input: imu raw data and calculated imu_offset. imu_offset is added to the yaw value of the imu data. 
-          if (imu_calibration_status > 0){
-              tf2::Quaternion quat_tf;
-              geometry_msgs::msg::Quaternion quat_msg;
-              // Convert  ROS Quaternion to tf2 Quaternion msg
-              tf2::convert(q_imu , quat_tf);
-              // Convert from Quaternion to euler
-              std::vector<double> result = eulerFromQuat(quat_tf);
-              // Add imu offset and convert back to Quaternion  
-              tf2::Quaternion result_tf =  quatFromEuler(result[0],result[1],result[2]+imu_offset);
-              std_msgs::msg::Float32 heading_z_msg;
-              heading_z_msg.data = result[2]+imu_offset;
-              pub_imu_z->publish(heading_z_msg);
-              // Convert tf2 Quaternion to ROS Quaternion
-              tf2::convert(result_tf ,quat_msg);
-              
-              // create imu message
-              sensor_msgs::msg::Imu imuMsg;
-              imuMsg.header.stamp = this->now();
-              imuMsg.header.frame_id = imu_frame;
-              imuMsg.orientation.x = quat_msg.x;
-              imuMsg.orientation.y = quat_msg.y;
-              imuMsg.orientation.z = quat_msg.z;
-              imuMsg.orientation.w = quat_msg.w;
-              
-              imuMsg.angular_velocity.z = imu_ang_vel_z;  // for EKF inupt
-              // publish /imu/data_corrected
-              pub_imu->publish(imuMsg);
-              // Publsih /imu/data_offset
-              std_msgs::msg::Float32 imu_offset_msg;
-              imu_offset_msg.data = (float)imu_offset;
-              pub_imu_offset->publish(imu_offset_msg);
-          }       
+            // Description: Publish calibrated imu data (/imu/dadta_coreccted) and a topic for debugging purpose (/imu/data_offset)
+            // Input: imu raw data and calculated imu_offset. imu_offset is added to the yaw value of the imu data. 
+            if (imu_calibration_status > 0){
+                tf2::Quaternion quat_tf;
+                geometry_msgs::msg::Quaternion quat_msg;
+                // Convert  ROS Quaternion to tf2 Quaternion msg
+                tf2::convert(q_imu , quat_tf);
+                // Convert from Quaternion to euler
+                std::vector<double> result = eulerFromQuat(quat_tf);
+                // Add imu offset and convert back to Quaternion  
+                tf2::Quaternion result_tf =  quatFromEuler(result[0],result[1],result[2]+imu_offset);
+                std_msgs::msg::Float32 heading_z_msg;
+                heading_z_msg.data = result[2]+imu_offset;
+                pub_imu_z->publish(heading_z_msg);
+                // Convert tf2 Quaternion to ROS Quaternion
+                tf2::convert(result_tf ,quat_msg);
+                
+                // create imu message
+                sensor_msgs::msg::Imu imuMsg;
+                imuMsg.header.stamp = this->now();
+                imuMsg.header.frame_id = imu_frame;
+                imuMsg.orientation.x = quat_msg.x;
+                imuMsg.orientation.y = quat_msg.y;
+                imuMsg.orientation.z = quat_msg.z;
+                imuMsg.orientation.w = quat_msg.w;
+                
+                imuMsg.angular_velocity.z = imu_ang_vel_z;  // for EKF inupt
+                // publish /imu/data_corrected
+                pub_imu->publish(imuMsg);
+                // Publsih /imu/data_offset
+                std_msgs::msg::Float32 imu_offset_msg;
+                imu_offset_msg.data = (float)imu_offset;
+                pub_imu_offset->publish(imu_offset_msg);
+            }       
         }
 
 
