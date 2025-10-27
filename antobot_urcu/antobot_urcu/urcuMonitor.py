@@ -19,6 +19,8 @@ import yaml
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile
+
 
 from std_msgs.msg import Bool, UInt8
 from antobot_platform_msgs.msg import UInt8Array,Float32Array,UInt16Array
@@ -44,19 +46,24 @@ class urcuMonitor(Node):
         self.As_uBat = 55
         self.soft_shutdown_req = False
         self.voltage_pre = 56.0
+        self.voltage_cnt = 0
 
         self.cpu_load_level_str = "low"
         self.cpu_temp_level_str = "low"
+        self.As_cputemp = 0.0
+        self.As_cpuLoad = 0.0
         self.cpuLoad_list = []
         self.cpuLoad_win_len = 10
         self.storage_level = 0  # Assume there is plenty of storage remaining
         self.As_sBatlvl = "none"
 
-        self.sub_As_uBat = self.create_subscription(UInt8Array, "/antobridge/Ab_uBat",self.battery_callback)
-        self.sub_soft_shutdown_button = self.create_subscription(Bool, '/antobridge/soft_shutdown_button',self.soft_shutdown_callback)
+        qos_profile = QoSProfile(depth=10)
 
-        self.pub_soft_shutdown_req = self.create_publisher(Bool, "/antobridge/soft_shutdown_req",1)
-        self.pub_soc = self.create_publisher(UInt8, "/antobot/urcu/soc", 1)
+        self.sub_As_uBat = self.create_subscription(UInt8Array, "/antobridge/Ab_uBat",self.battery_callback, qos_profile)
+        self.sub_soft_shutdown_button = self.create_subscription(Bool, '/antobridge/soft_shutdown_button',self.soft_shutdown_callback, qos_profile)
+
+        self.pub_soft_shutdown_req = self.create_publisher(Bool, "/antobridge/soft_shutdown_req",qos_profile)
+        self.pub_soc = self.create_publisher(UInt8, "/antobot/urcu/soc", qos_profile)
 
         self.soft_shutdown_client = self.create_client(SoftShutdown, '/antobot/soft_shutdown_req')
 
@@ -185,6 +192,7 @@ class urcuMonitor(Node):
 
     def battery_lvl(self):
         #calculate the current soc and convert it to level battery
+        self.As_uSoC = 0
         counter = 100
 
         #The look up table for SOC 
@@ -209,13 +217,15 @@ class urcuMonitor(Node):
                 self.logger.debug("SF1300: Battery >80 percent (high)")
             if battery_level_i == "medium":
                 self.logger.info("SF1300: Battery >55 percent (medium)")
-            if battery_level_i == 2:
+            if battery_level_i == "low":
                 self.logger.warning("SF1300: Battery >30 percent (low)")
-            if battery_level_i == 3: 
+            if battery_level_i == "alert":
                 self.logger.error("SF1300: Battery <30 percent (critical)")
             self.As_sBatlvl = battery_level_i
-        
-        self.pub_soc.publish(self.As_uSoC)
+
+        msg = UInt8()
+        msg.data = self.As_uSoC
+        self.pub_soc.publish(msg)
 
 
     def soft_shutdown_callback(self,soft_shutdown):  #soft shutdown button on joystick pressed
@@ -225,8 +235,15 @@ class urcuMonitor(Node):
 
     def soft_shutdown_process(self): #send req to antobridge, call the power off service
         if self.soft_shutdown_req == True:
-            self.pub_soft_shutdown_req.publish(self.soft_shutdown_req)
-            soft_shutdown_reponse = self.soft_shutdown_client(1)
+            # self.pub_soft_shutdown_req.publish(self.soft_shutdown_req)
+            msg = Bool()
+            msg.data = self.soft_shutdown_req
+            self.pub_soft_shutdown_req.publish(msg)
+            if self.soft_shutdown_client.wait_for_service(timeout_sec=1.0):
+                req = SoftShutdown.Request()
+                future = self.soft_shutdown_client.call_async(req)
+            else:
+                self.logger.error("Soft shutdown service not available")
 
     def loop(self,event=None): # Just a function to call all the looped code
         self.storage_management()
@@ -237,10 +254,10 @@ class urcuMonitor(Node):
 def main():
     rclpy.init() 
     sysMonitor= urcuMonitor()
-    rclpy.spin()
+    rclpy.spin(sysMonitor)
 
     if not sysMonitor.jtop_ext:
-        sysMonitor.jetson.close
+        sysMonitor.jetson.close()
 
 if __name__ == '__main__':
     main()
