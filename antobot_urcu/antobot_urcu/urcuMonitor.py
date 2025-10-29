@@ -83,8 +83,9 @@ class urcuMonitor(Node):
 
     def xavier_monitor_int(self):
         #access to Jtop and read the xavier info
-        jtopstats = self.jetson.stats      
-        self.As_cputemp = jtopstats["Temp CPU"]
+        jtopstats = self.jetson.stats
+        #print(f"jtopstats: {jtopstats}")      
+        self.As_cputemp = jtopstats["Temp cpu"]
         
         CPU1 = jtopstats["CPU1"]
         CPU2 = jtopstats["CPU2"]
