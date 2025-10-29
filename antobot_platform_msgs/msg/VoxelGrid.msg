@@ -1,4 +1,4 @@
-Header header
+std_msgs/Header header
 uint32[] data
 geometry_msgs/Point32 origin
 geometry_msgs/Vector3 resolutions

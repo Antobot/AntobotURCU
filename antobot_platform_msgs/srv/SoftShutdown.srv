@@ -1,0 +1,4 @@
+bool softshutdownreq
+---
+bool response_bool
+string response_string

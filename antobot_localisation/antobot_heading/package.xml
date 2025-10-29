@@ -1,24 +1,20 @@
 <?xml version="1.0"?>
-<package format="2">
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
   <name>antobot_heading</name>
   <version>0.0.0</version>
-  <description>The antobot_heading package</description>
+  <description>TODO: Package description</description>
+  <maintainer email="zhuang.zhou@antobot.ai">antoscout-orin</maintainer>
+  <license>Apache-2.0</license>
 
-  <maintainer email="soyoung.kim@antobot.ai">So-Young Kim</maintainer>
+  <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <license>BSD</license>
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
 
-  <depend>nav_msgs</depend>
-  <depend>roscpp</depend>
-  <depend>std_msgs</depend>
-  <depend>sensor_msgs</depend>
-  <depend>std_srvs</depend>
-  <depend>tf2</depend>
-  <depend>geonav_transform</depend>
-  <depend>tf2_geometry_msgs</depend>
-  <depend>antobot_platform_msgs</depend>
-  <depend>antobot_devices_msgs</depend>
-  <depend>geometry_msgs</depend>
-  <buildtool_depend>catkin</buildtool_depend>
+  <exec_depend>antobot_devices_msgs</exec_depend>
 
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
 </package>
