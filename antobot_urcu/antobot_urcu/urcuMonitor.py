@@ -36,7 +36,7 @@ class urcuMonitor(Node):
         super().__init__("urcuMonitor")
         self.logger = self.get_logger()
 
-        self.jtop_ext = True    # If using this script inside of a docker ontainer, self.jtop_ext should be True
+        self.jtop_ext = False    # If using this script inside of a docker ontainer, self.jtop_ext should be True
 
         #Xavier monitor
         if not self.jtop_ext:
