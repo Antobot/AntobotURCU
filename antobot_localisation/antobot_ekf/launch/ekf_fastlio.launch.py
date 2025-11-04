@@ -28,31 +28,31 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
 
     # Get the path to the YAML configuration files
-    # ekf_odom_config = os.path.join(get_package_share_directory('antobot_ekf'),'params','ekf_odom.yaml')
-    ekf_map_config = os.path.join(get_package_share_directory('antobot_ekf'), 'params','ekf_map_fastlio.yaml')
+    ekf_odom_config = os.path.join(get_package_share_directory('antobot_ekf'),'params','ekf_odom_fastlio.yaml')
+    # ekf_map_config = os.path.join(get_package_share_directory('antobot_ekf'), 'params','ekf_map_fastlio.yaml')
 
     # Define EKF odometry node
-    # ekf_odom_node = Node(
-    #     package='robot_localization',
-    #     executable='ekf_node',
-    #     name='ekfOdom_node',
-    #     parameters=[ekf_odom_config, {'use_sim_time': use_sim_time}],
-    #     remappings=[('/odometry/filtered', '/odometry/ekfOdom')],
-    #     arguments=['--ros-args', '--log-level', 'DEBUG'],
-    #     output='screen'
-    # )
-    # ld.add_action(ekf_odom_node)
-
-    # Define EKF map node
-    ekf_map_node = Node(
+    ekf_odom_node = Node(
         package='robot_localization',
         executable='ekf_node',
-        name='ekfMap_node',
-        parameters=[ekf_map_config, {'use_sim_time': use_sim_time}],
+        name='ekfOdom_node',
+        parameters=[ekf_odom_config, {'use_sim_time': use_sim_time}],
+        remappings=[('/odometry/filtered', '/odometry/ekfOdom')],
         arguments=['--ros-args', '--log-level', 'DEBUG'],
         output='screen'
     )
-    ld.add_action(ekf_map_node)
+    ld.add_action(ekf_odom_node)
+
+    # Define EKF map node
+    # ekf_map_node = Node(
+    #     package='robot_localization',
+    #     executable='ekf_node',
+    #     name='ekfMap_node',
+    #     parameters=[ekf_map_config, {'use_sim_time': use_sim_time}],
+    #     arguments=['--ros-args', '--log-level', 'DEBUG'],
+    #     output='screen'
+    # )
+    # ld.add_action(ekf_map_node)
 
     # Include NavSat launch
     navSatLaunchObj = Launchfile("navSatTransform", 'antobot_ekf', 'navsat_transform.launch.py')
