@@ -19,8 +19,12 @@ ekfMap_node:
     map_frame: map              
     odom_frame: odom            
     base_link_frame: base_link  
-    world_frame: map           
-
+    world_frame: map
+    # x, y, z,
+    # roll, pitch, yaw,
+    # vx, vy, vz,
+    # vroll, vpitch, vyaw,
+    # ax, ay, az
     odom0: /odometry/gps
 
     odom0_config: [true,  true,  false,
@@ -49,22 +53,22 @@ ekfMap_node:
     odom1_relative: false
 
     # Further input parameter
-    imu0: /imu/data_corrected
-
-    imu0_config: [false, false, false,
-                  false, false, true,
-                  false, false, false,
-                  false, false, true,
-                  false, false, false]
-
-    imu0_nodelay: true
-
-    imu0_differential: false
-
-    imu0_relative: false
-    imu0_queue_size: 5
-
-    imu0_remove_gravitational_acceleration: true # false for Bosch IMU
+#    imu0: /imu/data_corrected
+#
+#    imu0_config: [false, false, false,
+#                  false, false, true,
+#                  false, false, false,
+#                  false, false, true,
+#                  false, false, false]
+#
+#    imu0_nodelay: true
+#
+#    imu0_differential: false
+#
+#    imu0_relative: false
+#    imu0_queue_size: 5
+#
+#    imu0_remove_gravitational_acceleration: true # false for Bosch IMU
 
     use_control: false
     stamped_control: false
