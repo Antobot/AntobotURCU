@@ -3,7 +3,7 @@
 # Copyright (c) 2022, ANTOBOT LTD.
 # All rights reserved.
 
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # # # Code Description:     This code is used to launch and monitor scripts which cannot be launched individually due to 
 #                           configuration issues, or because the code is external. It should also monitor the processes
@@ -112,7 +112,7 @@ class RoslaunchWrapperObject():
 
 
 class AntobotSWNode:
-    def __init__(self, name_arg, package_arg, executable_arg, err_code_id, name_space, input_args, node_type, use_sim_time=False, ssh=False):
+    def __init__(self, name_arg, package_arg, executable_arg, err_code_id, name_space, input_args, node_type, use_sim_time=False, ssh=[]):
         
         self._name = name_arg
         self._package = package_arg
@@ -144,11 +144,13 @@ class AntobotSWNode:
         """
         # ===== Inline SSH execution path =====
         # If ssh is enabled, run the target executable on a remote host via SSH.
-        if getattr(self, '_ssh', False):
-            # Read remote parameters from environment variables (with sensible defaults).
-            user   = os.environ.get('ANTOSSH_USER',   'cart')
-            host   = os.environ.get('ANTOSSH_HOST',   '192.168.1.103')
-            ws     = os.environ.get('ANTOSSH_WS',     '~/antuv_ws')
+        # NOTE: we only use the provided ssh list if it contains at least 3 entries:
+        #       [user, host, ws]. If the list is shorter, we treat it as "no SSH".
+        if len(self._ssh) >= 3:
+            # Read remote parameters from the provided list: [user, host, ws]
+            user = self._ssh[0]
+            host = self._ssh[1]
+            ws   = self._ssh[2]
 
             remote = f"{user}@{host}"
 
@@ -213,7 +215,7 @@ class AntobotSWNode:
 
 
 class Launchfile:
-    def __init__(self, name_arg, package_arg, exec_arg, ssh=False):
+    def __init__(self, name_arg, package_arg, exec_arg, ssh=[]):
         self._name = name_arg
         self._package = get_package_share_directory(package_arg)
         self._exec = exec_arg
@@ -227,10 +229,12 @@ class Launchfile:
 
         # ===== Inline SSH execution for launch files =====
         # If ssh is enabled, execute `ros2 launch <package> <launchfile>` on the remote host.
-        if getattr(self, '_ssh', False):
-            user   = os.environ.get('ANTOSSH_USER',   'cart')
-            host   = os.environ.get('ANTOSSH_HOST',   '192.168.1.103')
-            ws     = os.environ.get('ANTOSSH_WS',     '~/antuv_ws')
+        # NOTE: we only use the provided ssh list if it contains at least 3 entries:
+        #       [user, host, ws]. If the list is shorter, we treat it as "no SSH".
+        if len(self._ssh) >= 3:
+            user   = self._ssh[0]
+            host   = self._ssh[1]
+            ws     = self._ssh[2]
 
             remote = f"{user}@{host}"
             remote_cmd = (
