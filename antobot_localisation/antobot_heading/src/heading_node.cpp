@@ -34,6 +34,7 @@
 #include <tf2/convert.h>
 #include "std_srvs/srv/trigger.hpp"
 #include <antobot_devices_msgs/srv/progress_update.hpp>
+#include <antobot_manager_msgs/srv/progress_update.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <geometry_msgs/msg/polygon_stamped.h>
 
@@ -142,7 +143,7 @@ private:
     rclcpp::Client<antobot_devices_msgs::srv::ProgressUpdate>::SharedPtr hmi_cli;
     
     // Services
-    rclcpp::Service<antobot_devices_msgs::srv::ProgressUpdate>::SharedPtr hmi_calibration_srv;
+    rclcpp::Service<antobot_manager_msgs::srv::ProgressUpdate>::SharedPtr hmi_calibration_srv;
     
     // Functions
     void initialise(){
@@ -225,8 +226,8 @@ private:
         sub_imu = this->create_subscription<sensor_msgs::msg::Imu>(imu_topic, 10, std::bind(&AntobotHeading::imuCallback,this, _1));
         sub_odometry = this->create_subscription<nav_msgs::msg::Odometry>(odometry_topic, 10, std::bind(&AntobotHeading::odometryCallback,this,_1));
         sub_wheel_odom = this->create_subscription<nav_msgs::msg::Odometry>(wheelodometry_topic, 10, std::bind(&AntobotHeading::wheelOdomCallback,this,_1));
-        sub_costmap = this->create_subscription<nav_msgs::msg::OccupancyGrid>("/costmap_node/costmap/costmap", 10, std::bind(&AntobotHeading::costmapCallback,this,_1));
-        sub_footprint = this->create_subscription<geometry_msgs::msg::PolygonStamped>("/costmap_node/costmap/footprint", 10, std::bind(&AntobotHeading::footprintCallback,this,_1));
+        sub_costmap = this->create_subscription<nav_msgs::msg::OccupancyGrid>("/costmap/costmap", 10, std::bind(&AntobotHeading::costmapCallback,this,_1));
+        sub_footprint = this->create_subscription<geometry_msgs::msg::PolygonStamped>("/costmap/published_footprint", 10, std::bind(&AntobotHeading::footprintCallback,this,_1));
         sub_cmd_vel = this->create_subscription<geometry_msgs::msg::Twist>("/antobot/robot/cmd_vel", 10, std::bind(&AntobotHeading::cmdVelCallback,this, _1));
         sub_heading = this->create_subscription<std_msgs::msg::Float64>("am_heading_robot", 10, std::bind(&AntobotHeading::headingCallback,this,_1));
         
@@ -236,7 +237,7 @@ private:
         pub_imu_offset = this->create_publisher<std_msgs::msg::Float32>("/imu/data_offset", 10); // For debug
         pub_calib = this->create_publisher<std_msgs::msg::UInt8>("/imu_calibration_status", 10); // For heading_launcher. Notify when the initial calibraion is done.
         pub_GPS_origin = this->create_publisher<sensor_msgs::msg::NavSatFix>("/gps_map_origin",10);
-        pub_cmd_vel = this->create_publisher<geometry_msgs::msg::Twist>("/am_nav/cmd_vel",10); // cmd_vel for HMI auto calibration
+        pub_cmd_vel = this->create_publisher<geometry_msgs::msg::Twist>("/antobot/nav/cmd_vel",10); // cmd_vel for HMI auto calibration
         pub_switch = this->create_publisher<std_msgs::msg::UInt8>("/antobot/teleop/switch_mode", 10);
         
         // Clients
@@ -244,7 +245,7 @@ private:
         hmi_cli = this->create_client<antobot_devices_msgs::srv::ProgressUpdate>("/calibration_HMI/progressUpdate"); // update progress in HMI bridge
         
         // Service - currently causes large build error!
-        hmi_calibration_srv = this->create_service<antobot_devices_msgs::srv::ProgressUpdate>("/calibration/progressUpdate", 
+        hmi_calibration_srv = this->create_service<antobot_manager_msgs::srv::ProgressUpdate>("/calibration/progressUpdate", 
         std::bind(&AntobotHeading::hmiService, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
         
         // Timer
@@ -723,8 +724,8 @@ private:
 
     void hmiService(
         const std::shared_ptr<rmw_request_id_t> request_header,
-        const std::shared_ptr<antobot_devices_msgs::srv::ProgressUpdate::Request> req, 
-        const std::shared_ptr<antobot_devices_msgs::srv::ProgressUpdate::Response> res)
+        const std::shared_ptr<antobot_manager_msgs::srv::ProgressUpdate::Request> req, 
+        const std::shared_ptr<antobot_manager_msgs::srv::ProgressUpdate::Response> res)
     {
         RCLCPP_INFO(this->get_logger(), "HMI button pressed - set hmi_auto_button_pressed True %d",req->progress_code);
         hmi_auto_button_pressed = true;
