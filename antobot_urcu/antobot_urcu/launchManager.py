@@ -112,7 +112,8 @@ class RoslaunchWrapperObject():
 
 
 class AntobotSWNode:
-    def __init__(self, name_arg, package_arg, executable_arg, err_code_id, name_space, input_args, node_type, use_sim_time=False, ssh=False):
+    def __init__(self, name_arg, package_arg, executable_arg, err_code_id, name_space, input_args, node_type, 
+                 param_files=[], use_sim_time=False, ssh=False, prefix=[]):
         
         self._name = name_arg
         self._package = package_arg
@@ -122,7 +123,9 @@ class AntobotSWNode:
         self._instance_num = 0
         self._relaunch_count = 0
         self._node_type = node_type
+        self._param_files = param_files
         self._use_sim_time = use_sim_time
+        self._prefix = prefix
 
         self._relaunch = True # Determines if the node should relaunch
         self._running = False # Tracks if the node should be running - not that it is
@@ -183,8 +186,8 @@ class AntobotSWNode:
         # ===========================================
 
         # Takes the description and joint angles as inputs and publishes the 3D poses of the robot links
-        self._node = Node(package=self._package, executable=self._executable, name=self._name, parameters=[*self._input_args, {'use_sim_time': self._use_sim_time}],
-            output='log', respawn=True, respawn_delay=3)
+        self._node = Node(package=self._package, executable=self._executable, name=self._name, parameters=[*self._param_files, {'use_sim_time': self._use_sim_time}],
+            output='log', respawn=True, respawn_delay=3, prefix=self._prefix)
         return self._node
 
     def launch(self, launcher):
