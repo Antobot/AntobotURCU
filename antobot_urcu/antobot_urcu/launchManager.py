@@ -186,7 +186,7 @@ class AntobotSWNode:
         # ===========================================
 
         # Takes the description and joint angles as inputs and publishes the 3D poses of the robot links
-        self._node = Node(package=self._package, executable=self._executable, name=self._name, parameters=[*self._param_files, {'use_sim_time': self._use_sim_time}],
+        self._node = Node(package=self._package, executable=self._executable, name=self._name, parameters=[self._param_files, {'use_sim_time': self._use_sim_time}],
             output='log', respawn=True, respawn_delay=3, prefix=self._prefix)
         return self._node
 
