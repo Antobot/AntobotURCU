@@ -113,7 +113,7 @@ class RoslaunchWrapperObject():
 
 class AntobotSWNode:
     def __init__(self, name_arg, package_arg, executable_arg, err_code_id, name_space, input_args, node_type, 
-                 param_files=[], use_sim_time=False, ssh=False, prefix=[]):
+                 param_files=None, param_dict=None, ssh=False, prefix=[]):
         
         self._name = name_arg
         self._package = package_arg
@@ -124,7 +124,7 @@ class AntobotSWNode:
         self._relaunch_count = 0
         self._node_type = node_type
         self._param_files = param_files
-        self._use_sim_time = use_sim_time
+        self._param_dict = param_dict
         self._prefix = prefix
 
         self._relaunch = True # Determines if the node should relaunch
@@ -134,6 +134,13 @@ class AntobotSWNode:
         
         self._process = None
         self._node = None
+
+        self.all_params = []
+        if self._param_files:
+            self.all_params.append(self._param_files)
+
+        if self._param_dict:
+            self.all_params.append(self._param_dict)
 
         # ===== ssh toggle =====
         # If True, this node will be launched remotely over SSH instead of locally.
@@ -186,7 +193,7 @@ class AntobotSWNode:
         # ===========================================
 
         # Takes the description and joint angles as inputs and publishes the 3D poses of the robot links
-        self._node = Node(package=self._package, executable=self._executable, name=self._name, parameters=[self._param_files, {'use_sim_time': self._use_sim_time}],
+        self._node = Node(package=self._package, executable=self._executable, name=self._name, parameters=self.all_params,
             output='log', respawn=True, respawn_delay=3, prefix=self._prefix)
         return self._node
 
