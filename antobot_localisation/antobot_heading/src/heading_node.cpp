@@ -228,7 +228,7 @@ private:
 
         rtk_target_status = 3; // rtk status is 3 in 3D fixed mode
         if (sim){
-            rtk_target_status = 3; // in simulation, gps status is always 0
+            rtk_target_status = 0; // in simulation, gps status is always 0
         }
         // Subscribers
         sub_gps = this->create_subscription<sensor_msgs::msg::NavSatFix>(gps_topic, 10, std::bind(&AntobotHeading::gpsCallback, this, _1));
