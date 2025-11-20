@@ -72,8 +72,8 @@ private:
     tf2::Matrix3x3 mat;
     size_t count_;
     
-    bool dual_gps;
     bool heading_received;
+    bool dual_gps_calibration_finished;
     // std_msgs::msg::Float64 dual_gps_heading;
     antobot_devices_msgs::msg::GpsHeading gps_heading;
 
@@ -161,15 +161,6 @@ private:
     
     // Functions
     void initialise(){
-        // Description: Initialises autoCalibration class
-        /*if (nh_.hasParam("/gps/ublox_rover")){
-            RCLCPP_INFO(this->get_logger(), "MV2100: Heading IMU calibration - using DUAL GPS");
-            dual_gps = true;
-        }
-        else{
-            RCLCPP_INFO(this->get_logger(), "MV2100: Heading IMU calibration - using One GPS & wheel odometry");
-            dual_gps = false;
-        }*/
 
         // configuration parameters
         calib_distance = 1.0; // calibration distance 
@@ -189,6 +180,7 @@ private:
         
         // dual GPS
         heading_received = false;
+        dual_gps_calibration_finished = false;
         heading_received_time = this->now();
         
         // imu
@@ -382,7 +374,7 @@ private:
             double imu_offset_tmp = calculateDifference(gps_yaw, result_imu[2]); // difference between orientations from imu and gps
             imu_offset = imu_offset_tmp;
 
-            if (diff_deg > calib_deg){
+            if (diff_deg > calib_deg){ 
                 RCLCPP_INFO_STREAM(this->get_logger(), "diff_deg: " << diff_deg << "; calib_deg: " << calib_deg);
                 RCLCPP_INFO(this->get_logger(), "MV2200: Auto-calibration complete (imu offset = %f degs)", imu_offset / M_PI * 180.0);
             }
@@ -572,8 +564,13 @@ private:
         }
         
         while (true){
+
+            if (dual_gps_calibration_finished && (state != 3)){ // this is for receiving gps_heading but valid;
+                state = 3;
+            }
+
             rclcpp::spin_some(nh_global_);
-            if (!dual_gps && hmi_auto_button_pressed && (state != 3)){ // to prevent a bug that makes robot drive 1m more after finishing calibration - possibly due to hmi button being pressed for a longer time. 
+            if (hmi_auto_button_pressed && (state != 3)){ // to prevent a bug that makes robot drive 1m more after finishing calibration - possibly due to hmi button being pressed for a longer time. 
                 hmi_auto_button_pressed = false; 
                 // update HMI progress : state 2 - In auto calibration
                 auto hmi_req = std::make_shared<antobot_devices_msgs::srv::ProgressUpdate::Request>();
@@ -604,6 +601,9 @@ private:
             else if (state ==4){ // auto calibration
                 state = autoCalibration_hmi(); // return 3 when success, return to 1 when failed
             }
+
+
+
             rclcpp::sleep_for(std::chrono::milliseconds(10));
         }
 
@@ -669,16 +669,16 @@ private:
         }
             
         // RCLCPP_INFO(this->get_logger(), "RTK status is %d",rtk_target_status);
-        start = std::chrono::steady_clock::now();
-        while (dual_gps && !heading_received){
-            auto now = std::chrono::steady_clock::now();
-            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
-            if (elapsed > 5){
-                RCLCPP_INFO(this->get_logger(), "Waiting for dual GPS heading to be received");
-            }
-            rclcpp::sleep_for(std::chrono::milliseconds(1000));
-            rclcpp::spin_some(nh_global_);
-        }
+        // start = std::chrono::steady_clock::now();
+        // while (dual_gps && !heading_received){
+        //     auto now = std::chrono::steady_clock::now();
+        //     auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
+        //     if (elapsed > 5){
+        //         RCLCPP_INFO(this->get_logger(), "Waiting for dual GPS heading to be received");
+        //     }
+        //     rclcpp::sleep_for(std::chrono::milliseconds(1000));
+        //     rclcpp::spin_some(nh_global_);
+        // }
             
         RCLCPP_INFO(this->get_logger(), "GPS, IMU, RTK all ready - start calibration");
     }
@@ -865,12 +865,16 @@ private:
                 dual_gps_calibration_time = this->now();
                 compute_imu_offset();
             }
+            
+            dual_gps_calibration_finished = true;
 
             return true;
             
         }
         else{
-            RCLCPP_INFO(this->get_logger(), "dual GPS heading value not updated");
+            RCLCPP_WARN_STREAM(this->get_logger(), "dual GPS Calibration failed: timeout: " << (this->now() - heading_received_time).seconds() 
+                << "s; heading_valid: " << gps_heading.heading_valid);
+                
             return false;
         }
     }
