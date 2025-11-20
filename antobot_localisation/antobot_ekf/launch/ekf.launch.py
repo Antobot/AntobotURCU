@@ -24,7 +24,7 @@ def generate_launch_description():
    
     # Declare launch arguments
     yaw_offset = DeclareLaunchArgument('yaw_offset', default_value='0.0', description='Initial yaw offset')
-    use_sim_time_arg = DeclareLaunchArgument('use_sim_time', default_value='false', description='Enable simulation time')
+    use_sim_time_arg = DeclareLaunchArgument('use_sim_time', default_value='true', description='Enable simulation time')
     ld.add_action(yaw_offset)
     ld.add_action(use_sim_time_arg)
 
