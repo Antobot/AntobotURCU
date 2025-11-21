@@ -40,6 +40,11 @@ from launch_ros.actions import Node
 
 from std_srvs.srv import Empty
 
+# ===== imports for SSH execution =====
+# These imports are used by the inline SSH execution path when `ssh=True`.
+from launch.actions import ExecuteProcess 
+# ==========================================
+
 class ProcessListener():
 
     def __init__():
@@ -107,7 +112,8 @@ class RoslaunchWrapperObject():
 
 
 class AntobotSWNode:
-    def __init__(self, name_arg, package_arg, executable_arg, err_code_id, name_space, input_args, node_type, use_sim_time=False):
+    def __init__(self, name_arg, package_arg, executable_arg, err_code_id, name_space, input_args, node_type, 
+                 param_files=None, param_dict=None, ssh=False, prefix=[]):
         
         self._name = name_arg
         self._package = package_arg
@@ -117,7 +123,9 @@ class AntobotSWNode:
         self._instance_num = 0
         self._relaunch_count = 0
         self._node_type = node_type
-        self._use_sim_time = use_sim_time
+        self._param_files = param_files
+        self._param_dict = param_dict
+        self._prefix = prefix
 
         self._relaunch = True # Determines if the node should relaunch
         self._running = False # Tracks if the node should be running - not that it is
@@ -127,14 +135,66 @@ class AntobotSWNode:
         self._process = None
         self._node = None
 
+        self.all_params = []
+        if self._param_files:
+            self.all_params.append(self._param_files)
+
+        if self._param_dict:
+            self.all_params.append(self._param_dict)
+
+        # ===== ssh toggle =====
+        # If True, this node will be launched remotely over SSH instead of locally.
+        self._ssh = ssh
+        # =================================
+
     def define_node(self):
         """
         Method to define a ROS node
 
         """
+        # ===== Inline SSH execution path =====
+        # If ssh is enabled, run the target executable on a remote host via SSH.
+        if getattr(self, '_ssh', False):
+            # Read remote parameters from environment variables (with sensible defaults).
+            user   = os.environ.get('ANTOSSH_USER',   'cart')
+            host   = os.environ.get('ANTOSSH_HOST',   '192.168.1.103')
+            ws     = os.environ.get('ANTOSSH_WS',     '~/antuv_ws')
+
+            remote = f"{user}@{host}"
+
+            # Decide between `ros2 run` and `ros2 launch` based on file suffix.
+            is_launch = self._executable.endswith('.launch.py') or self._executable.endswith('.xml')
+
+            # Build remote command. We wrap with bash -lc and a quoted string to avoid quoting issues.
+            if is_launch:
+                remote_cmd = (
+                    f'set -e; '
+                    f'source /opt/ros/humble/setup.bash; '
+                    f'source {ws}/install/setup.bash; '
+                    f'exec ros2 launch {self._package} {self._executable}'
+                )
+            else:
+                remote_cmd = (
+                    f'set -e; '
+                    f'source /opt/ros/humble/setup.bash; '
+                    f'source {ws}/install/setup.bash; '
+                    f'exec ros2 run {self._package} {self._executable}'
+                )
+
+            # Return an ExecuteProcess action that performs the SSH invocation.
+            return ExecuteProcess(
+                cmd=[
+                    'ssh', '-tt', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=no',
+                    remote, 'bash', '-lc', f'"{remote_cmd}"'
+                ],
+                shell=False,
+                output='screen'
+            )
+        # ===========================================
+
         # Takes the description and joint angles as inputs and publishes the 3D poses of the robot links
-        self._node = Node(package=self._package, executable=self._executable, name=self._name, parameters=[*self._input_args, {'use_sim_time': self._use_sim_time}],
-            output='log', respawn=True, respawn_delay=3)
+        self._node = Node(package=self._package, executable=self._executable, name=self._name, parameters=self.all_params,
+            output='log', respawn=True, respawn_delay=3, prefix=self._prefix)
         return self._node
 
     def launch(self, launcher):
@@ -163,12 +223,41 @@ class AntobotSWNode:
 
 
 class Launchfile:
-    def __init__(self, name_arg, package_arg, exec_arg):
+    def __init__(self, name_arg, package_arg, exec_arg, ssh=False):
         self._name = name_arg
         self._package = get_package_share_directory(package_arg)
         self._exec = exec_arg
 
+        # ===== ssh toggle for launch files =====
+        # If True, this launch file will be invoked remotely over SSH.
+        self._ssh = ssh
+        # ============================================
+
     def include_launch(self):
+
+        # ===== Inline SSH execution for launch files =====
+        # If ssh is enabled, execute `ros2 launch <package> <launchfile>` on the remote host.
+        if getattr(self, '_ssh', False):
+            user   = os.environ.get('ANTOSSH_USER',   'cart')
+            host   = os.environ.get('ANTOSSH_HOST',   '192.168.1.103')
+            ws     = os.environ.get('ANTOSSH_WS',     '~/antuv_ws')
+
+            remote = f"{user}@{host}"
+            remote_cmd = (
+                f'set -e; '
+                f'source /opt/ros/humble/setup.bash; '
+                f'source {ws}/install/setup.bash; '
+                f'exec ros2 launch {os.path.basename(self._package)} {self._exec}'
+            )
+            return ExecuteProcess(
+                cmd=[
+                    'ssh', '-tt', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=no',
+                    remote, 'bash', '-lc', f'"{remote_cmd}"'
+                ],
+                shell=False,
+                output='screen'
+            )
+        # ========================================================
 
         extension = self._exec.rsplit('.',1)[-1]
         if extension == "py":
@@ -189,4 +278,3 @@ def main(args):
 
 if __name__ == '__main__':
     main(sys.argv)
-

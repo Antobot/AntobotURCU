@@ -7,6 +7,7 @@
 #  -->
 
 import os
+import yaml
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -21,14 +22,25 @@ from antobot_urcu.launchManager import AntobotSWNode, Launchfile
 def generate_launch_description():
    
     ld = LaunchDescription()
-   
+
+    platform_config_file = os.path.join(
+        get_package_share_directory('antobot_description'),
+        'config',
+        'platform_config.yaml'
+    )
+
+    with open(platform_config_file, 'r') as f:
+        platform_config = yaml.safe_load(f)
+
+    use_sim_time_value = not platform_config.get('robot_hardware', False)
+
     # Declare launch arguments
     yaw_offset = DeclareLaunchArgument('yaw_offset', default_value='0.0', description='Initial yaw offset')
-    use_sim_time_arg = DeclareLaunchArgument('use_sim_time', default_value='false', description='Enable simulation time')
+    # use_sim_time_arg = DeclareLaunchArgument('use_sim_time', default_value='true', description='Enable simulation time')
     ld.add_action(yaw_offset)
-    ld.add_action(use_sim_time_arg)
+    # ld.add_action(use_sim_time_arg)
 
-    use_sim_time = LaunchConfiguration('use_sim_time')
+    # use_sim_time = LaunchConfiguration('use_sim_time')
 
     # Get the path to the YAML configuration files
     ekf_odom_config = os.path.join(get_package_share_directory('antobot_ekf'),'params','ekf_odom.yaml')
@@ -39,7 +51,7 @@ def generate_launch_description():
         package='robot_localization',
         executable='ekf_node',
         name='ekfOdom_node',
-        parameters=[ekf_odom_config, {'use_sim_time': use_sim_time}],
+        parameters=[ekf_odom_config, {'use_sim_time': use_sim_time_value}],
         remappings=[('/odometry/filtered', '/odometry/ekfOdom')],
         output='screen'
     )
@@ -50,7 +62,7 @@ def generate_launch_description():
         package='robot_localization',
         executable='ekf_node',
         name='ekfMap_node',
-        parameters=[ekf_map_config, {'use_sim_time': use_sim_time}],
+        parameters=[ekf_map_config, {'use_sim_time': use_sim_time_value}],
         output='screen'
     )
     ld.add_action(ekf_map_node)
@@ -69,7 +81,7 @@ def generate_launch_description():
         package='robot_localization',
         executable='navsat_transform_node',
         name='navsat_transform_node',
-        parameters=[navsat_transform_config, {'use_sim_time': use_sim_time}],
+        parameters=[navsat_transform_config, {'use_sim_time': use_sim_time_value}],
         remappings=[('/gps/fix', '/antobot_gps'), ('/imu', '/imu/data_corrected')],
         output='screen'
     )
