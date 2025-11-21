@@ -842,7 +842,7 @@ private:
         //     << "  heading_valid: " << gps_heading.heading_valid);
 
         // only if the recevied heading is up to date
-        if ((this->now() - heading_received_time).seconds() < 0.3 && gps_heading.heading_valid){ 
+        if ((this->now() - heading_received_time).seconds() < 0.5 && gps_heading.heading_valid){ 
             // gps_yaw is dual gps heading in -pi and +pi 
             // float gps_yaw_tmp = double(dual_gps_heading.data)*M_PI/180.0;
             
