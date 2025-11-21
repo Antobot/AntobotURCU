@@ -29,9 +29,9 @@ if __name__ == "__main__":
     rclpy.init_node("twist_to_twist_with_covariance")
 
     # Subscribe to the Twist topic
-    twist_sub = rclpy.Subscriber("/antobot_robot/cmd_vel", Twist, twist_callback)
+    twist_sub = rclpy.Subscriber("/antobot/robot/cmd_vel", Twist, twist_callback)
 
     # Publisher for the TwistWithCovarianceStamped topic
-    twist_with_cov_pub = rclpy.Publisher("/antobot_robot/cmd_vel_cov", TwistWithCovarianceStamped, queue_size=10)
+    twist_with_cov_pub = rclpy.Publisher("/antobot/robot/cmd_vel_cov", TwistWithCovarianceStamped, queue_size=10)
 
     rclpy.spin()
