@@ -5,6 +5,7 @@
 
 
 import os
+import yaml
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.conditions import IfCondition
@@ -22,12 +23,25 @@ def generate_launch_description():
        'navsat_transform.yaml'  
     )
 
+    # Path to platform YAML
+    platform_config_file = os.path.join(
+        get_package_share_directory('antobot_description'),
+        'config',
+        'platform_config.yaml'
+    )
+
+    with open(platform_config_file, 'r') as f:
+        platform_config = yaml.safe_load(f)
+
+    robot_hardware = not platform_config.get('robot_hardware', False)
+
     # Define nodes
     navsat_transform_node = Node(
         package='robot_localization',
         executable='navsat_transform_node',
         name='navsat_transform_node',
-        parameters=[navsat_transform_config],
+        parameters=[navsat_transform_config,
+                    {'robot_hardware': robot_hardware}],
         remappings=[('/gps/fix', '/antobot_gps'), ('/imu', '/imu/data_corrected')],
         arguments=[
             '--ros-args',

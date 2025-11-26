@@ -139,7 +139,7 @@ odom0_nodelay: true
 odom0_differential: false
 odom0_relative: false
 
-twist0: /antobot_robot/cmd_vel_cov
+twist0: /antobot/robot/cmd_vel_cov
 twist0_config: [false,  false,  false,
               false, false, false,
               true, false, false,
