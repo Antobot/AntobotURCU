@@ -33,7 +33,7 @@ def generate_launch_description():
     with open(platform_config_file, 'r') as f:
         platform_config = yaml.safe_load(f)
 
-    robot_hardware = not platform_config.get('robot_hardware', False)
+    robot_hardware = platform_config.get('robot_hardware', False)
 
     # Define nodes
     navsat_transform_node = Node(
