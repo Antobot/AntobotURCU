@@ -5,7 +5,7 @@
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-# # # Code Description:     This code is used to launch and monitor scripts which cannot be launched individually due to 
+# # # Code Description:     This code is used to launch and monitor scripts which cannot be launched individually due to
 #                           configuration issues, or because the code is external. It should also monitor the processes
 #                           launched in this manner, and report any issues to antoSupervisor.
 
@@ -13,7 +13,7 @@
 
 # # # #  # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-# TODO 
+# TODO
 # handle simulation - what to launch when the service is called in the simulation?
 
 
@@ -42,7 +42,7 @@ from std_srvs.srv import Empty
 
 # ===== imports for SSH execution =====
 # These imports are used by the inline SSH execution path when `ssh=True`.
-from launch.actions import ExecuteProcess 
+from launch.actions import ExecuteProcess
 # ==========================================
 
 class ProcessListener():
@@ -62,7 +62,7 @@ class ProcessListener():
 #             self.costmapManagerClient = rclpy.ServiceProxy('/costmap_manager/node_died_imu',Empty)
 #             # req = EmptyRequest()
 #             # res = self.costmapManagerClient.call(req)
-#             
+#
 #         #elif ('opcua_nodes' in name):
 #         #    rclpy.logerr("SW2131: " + name + " node has died!")
 #         #    netMonitorLaunchClient = rclpy.ServiceProxy("/antobot/netManager/netMonitorLaunch", netMonitorLaunch)
@@ -70,7 +70,7 @@ class ProcessListener():
 #         #    req.command = 1
 #         #    req.network = "OPCUA"
 #         #    res = netMonitorLaunchClient.call(req.network, req.command)
-#            
+#
 #         elif('webUI_server' in name):
 #             rclpy.logerr("SW2131: " + name + " node has died!")
 #             netMonitorLaunchClient = rclpy.ServiceProxy("/antobot/netManager/netMonitorLaunch", netMonitorLaunch)
@@ -89,7 +89,7 @@ class RoslaunchWrapperObject():
 #     def start(self):
 #         super(RoslaunchWrapperObject, self).start()
 #         #print(self.server)
-# 
+#
 #     def start_node_name(self,node_name): # for costmap node for now
 #         super(RoslaunchWrapperObject, self).start()
 #         #print(self.server)
@@ -101,7 +101,7 @@ class RoslaunchWrapperObject():
 #             rclpy.loginfo("SW2130: OPCUA nodes have started!")
 #         elif node_name == 'webUI':
 #             rclpy.loginfo("SW2130: webUI node has started!")
-# 
+#
 #     def stop(self):
 #         #print("Stopping...")
 #         #print(self.server)
@@ -129,7 +129,7 @@ class AntobotSWNode:
         self._running = False # Tracks if the node should be running - not that it is
 
         self._input_args = input_args
-        
+
         self._process = None
         self._node = None
 
@@ -194,7 +194,7 @@ class AntobotSWNode:
 
         # Takes the description and joint angles as inputs and publishes the 3D poses of the robot links
         self._node = Node(package=self._package, executable=self._executable, name=self._name, parameters=self.all_params,
-            output='log', respawn=True, respawn_delay=3, prefix=self._prefix)
+                          output='log', respawn=True, respawn_delay=3, prefix=self._prefix)
         return self._node
 
     def launch(self, launcher):
@@ -223,7 +223,7 @@ class AntobotSWNode:
 
 
 class Launchfile:
-    def __init__(self, name_arg, package_arg, exec_arg, ssh=[]):
+    def __init__(self, name_arg, package_arg, exec_arg, ssh=[], cpu=None):
         self._name = name_arg
         self._package = get_package_share_directory(package_arg)
         self._exec = exec_arg
@@ -232,6 +232,8 @@ class Launchfile:
         # If True, this launch file will be invoked remotely over SSH.
         self._ssh = ssh
         # ============================================
+        self._cpu = cpu
+
 
     def include_launch(self):
 
@@ -261,12 +263,24 @@ class Launchfile:
             )
         # ========================================================
 
+        if self._cpu is not None:
+            # taskset -c <cpu> ros2 launch pkg file.py
+            return ExecuteProcess(
+                cmd=[
+                    'taskset', '-c', self._cpu,
+                    'ros2', 'launch',
+                    os.path.basename(self._package), self._exec
+                ],
+                shell=False,
+                output='screen'
+            )
+
         extension = self._exec.rsplit('.',1)[-1]
         if extension == "py":
             launch_desc = IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(os.path.join(self._package, 'launch', self._exec))
             )
-        elif extension == "xml": 
+        elif extension == "xml":
             launch_desc = IncludeLaunchDescription(
                 XMLLaunchDescriptionSource(os.path.join(self._package, 'launch', self._exec))
             )
@@ -274,7 +288,7 @@ class Launchfile:
         return launch_desc
 
 def main(args):
-    
+
     rclpy.init_node('launchManager', anonymous=False)
     rclpy.spin()
 
