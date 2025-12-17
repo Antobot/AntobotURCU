@@ -223,7 +223,7 @@ class AntobotSWNode:
 
 
 class Launchfile:
-    def __init__(self, name_arg, package_arg, exec_arg, ssh=[], cpu=None):
+    def __init__(self, name_arg, package_arg, exec_arg, ssh=[], delay=None, cpu=None):
         self._name = name_arg
         self._package = get_package_share_directory(package_arg)
         self._exec = exec_arg
@@ -233,6 +233,10 @@ class Launchfile:
         self._ssh = ssh
         # ============================================
         self._cpu = cpu
+        if delay is None:
+            self._delay = 0
+        else:
+            self._delay = delay
 
 
     def include_launch(self):
@@ -246,11 +250,14 @@ class Launchfile:
             host   = self._ssh[1]
             ws     = self._ssh[2]
 
+
+
             remote = f"{user}@{host}"
             remote_cmd = (
                 f'set -e; '
                 f'source /opt/ros/humble/setup.bash; '
                 f'source {ws}/install/setup.bash; '
+                f'sleep {self._delay}; '
                 f'exec ros2 launch {os.path.basename(self._package)} {self._exec}'
             )
             return ExecuteProcess(
