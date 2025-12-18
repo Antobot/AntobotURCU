@@ -171,6 +171,7 @@ class AntobotSWNode:
                     f'set -e; '
                     f'source /opt/ros/humble/setup.bash; '
                     f'source {ws}/install/setup.bash; '
+                    f'export ROS_DOMAIN_ID=1; '
                     f'exec ros2 launch {self._package} {self._executable}'
                 )
             else:
@@ -178,6 +179,7 @@ class AntobotSWNode:
                     f'set -e; '
                     f'source /opt/ros/humble/setup.bash; '
                     f'source {ws}/install/setup.bash; '
+                    f'export ROS_DOMAIN_ID=1; '
                     f'exec ros2 run {self._package} {self._executable}'
                 )
 
@@ -258,6 +260,7 @@ class Launchfile:
                 f'source /opt/ros/humble/setup.bash; '
                 f'source {ws}/install/setup.bash; '
                 f'sleep {self._delay}; '
+                f'export ROS_DOMAIN_ID=1; '
                 f'exec ros2 launch {os.path.basename(self._package)} {self._exec}'
             )
             return ExecuteProcess(
