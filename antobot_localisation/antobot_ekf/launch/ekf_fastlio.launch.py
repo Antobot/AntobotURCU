@@ -53,7 +53,7 @@ def generate_launch_description():
     ld.add_action(ekf_map_node)
 
     # Include NavSat launch
-    navSatLaunchObj = Launchfile("navSatTransform", 'antobot_ekf', 'navsat_transform.launch.py')
+    navSatLaunchObj = Launchfile("navSatTransform", 'antobot_ekf', 'navsat_transform_lio.launch.py')
     ld.add_action(navSatLaunchObj.include_launch())
 
     return ld
