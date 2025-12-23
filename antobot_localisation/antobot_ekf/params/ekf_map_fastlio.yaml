@@ -41,7 +41,7 @@ ekfMap_node:
     odom1: /antobot_lidar_odom/Odometry
 
     odom1_config: [ true, true,  false,
-                    false, false, false,
+                    false, false, true,
                     true, true, false,
                     false, false, true,
                     false, false, false ]
