@@ -33,7 +33,7 @@ def generate_launch_description():
     with open(platform_config_file, 'r') as f:
         platform_config = yaml.safe_load(f)
 
-    robot_hardware = platform_config.get('robot_hardware', False)
+    robot_hardware = platform_config.get('robot_hardware', True)
 
     # Define nodes
     navsat_transform_node = Node(
@@ -42,7 +42,8 @@ def generate_launch_description():
         name='navsat_transform_node',
         parameters=[navsat_transform_config,
                     {'robot_hardware': robot_hardware}],
-        remappings=[('/gps/fix', '/antobot_gps'), ('/imu', '/imu/data_corrected')],
+        remappings=[('/gps/fix', '/antobot_gps'), ('/imu', '/imu/data_corrected'),
+                    ('odometry/filtered', '/antobot_lidar_odom/odometry_map_base')],
         arguments=[
             '--ros-args',
             '--log-level', 'navsat_transform:=debug',
