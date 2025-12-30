@@ -43,7 +43,7 @@ def generate_launch_description():
         parameters=[navsat_transform_config,
                     {'robot_hardware': robot_hardware}],
         remappings=[('/gps/fix', '/antobot_gps'), ('/imu', '/imu/data_corrected'),
-                    ('odometry/filtered', '/antobot_lidar_odom/odometry_map_base')],
+                    ('odometry/filtered', '/antobot_lidar_odom/base_map_odom')],
         arguments=[
             '--ros-args',
             '--log-level', 'navsat_transform:=debug',
