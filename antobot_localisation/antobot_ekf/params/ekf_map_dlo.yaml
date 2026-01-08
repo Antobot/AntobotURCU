@@ -158,7 +158,7 @@ imu0_remove_gravitational_acceleration: true # false for Bosch IMU
 
 
 # gps velocity
-twist0: /antobot_robot/cmd_vel_cov
+twist0: /antobot/robot/cmd_vel_cov
 twist0_config: [false,  false,  false,
               false, false, false,
               true, false, false,

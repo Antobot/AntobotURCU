@@ -38,12 +38,12 @@ ekfMap_node:
     odom0_differential: false
     odom0_relative: false
 
-    odom1: /antobot/robot/odometry
+    odom1: /antobot_lidar_odom/Odometry
 
-    odom1_config: [ false, false,  false,
-                    false, false, false,
-                    true, true, false,
+    odom1_config: [ true, true,  false,
                     false, false, true,
+                    false, false, false,
+                    false, false, false,
                     false, false, false ]
 
     odom1_queue_size: 10
