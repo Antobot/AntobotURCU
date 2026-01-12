@@ -43,14 +43,14 @@ def generate_launch_description():
     # ld.add_action(ekf_odom_node)
 
     # Define EKF map node
-    # ekf_map_node = Node(
-    #     package='robot_localization',
-    #     executable='ekf_node',
-    #     name='ekfMap_node',
-    #     parameters=[ekf_map_config, {'use_sim_time': use_sim_time}],
-    #     output='screen'
-    # )
-    # ld.add_action(ekf_map_node)
+    ekf_map_node = Node(
+        package='robot_localization',
+        executable='ekf_node',
+        name='ekfMap_node',
+        parameters=[ekf_map_config, {'use_sim_time': use_sim_time}],
+        output='screen'
+    )
+    ld.add_action(ekf_map_node)
 
     # Include NavSat launch
     navSatLaunchObj = Launchfile("navSatTransform", 'antobot_ekf', 'navsat_transform_lio.launch.py')
