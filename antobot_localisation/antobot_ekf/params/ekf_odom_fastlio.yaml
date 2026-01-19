@@ -1,6 +1,6 @@
 ekfOdom_node:
   ros__parameters:
-    frequency: 30.0
+    frequency: 10.0
     sensor_timeout: 1.0
     two_d_mode: true
     transform_time_offset: 0.1
@@ -43,20 +43,20 @@ ekfOdom_node:
 
     odom0_queue_size: 10
     odom0_nodelay: true
-    odom0_differential: false
+    odom0_differential: true
     odom0_relative: false
 
-    odom1: /antobot/robot/odometry
-    odom1_config: [false, false,  false,
-                   false, false, false,
-                   true, true, false,
-                   false, false, true,
-                   false, false, false]
-
-    odom1_queue_size: 10
-    odom1_nodelay: true
-    odom1_differential: true
-    odom1_relative: false
+#    odom1: /antobot/robot/odometry
+#    odom1_config: [false, false,  false,
+#                   false, false, false,
+#                   true, true, false,
+#                   false, false, true,
+#                   false, false, false]
+#
+#    odom1_queue_size: 10
+#    odom1_nodelay: true
+#    odom1_differential: true
+#    odom1_relative: false
 
 
     use_control: false
