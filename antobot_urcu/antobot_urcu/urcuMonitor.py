@@ -3,15 +3,6 @@
 # Copyright (c) 2024, ANTOBOT LTD.
 # All rights reserved.
 
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-
-# # # Code Description:     urcuMonitor looks after different system data such as CPU load, temperature, storage, and the
-#                           battery level of the robot. It reports any changes via rosout.
-
-# Contacts: daniel.freer@antobot.ai
-
-# # # #  # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-
 from jtop import jtop
 import shutil
 import json
@@ -21,7 +12,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 
-from std_msgs.msg import Bool, UInt8
+from std_msgs.msg import Bool, UInt8, Float32
 from antobot_platform_msgs.msg import UInt8Array, Float32Array, UInt16Array
 from antobot_platform_msgs.srv import SoftShutdown
 
@@ -54,6 +45,8 @@ class urcuMonitor(Node):
         self.As_cpuLoad = 0.0
         self.cpuLoad_list = []
         self.cpuLoad_win_len = 10
+        self.cpuLoad_avg = 0.0
+
         self.storage_level = 0  # Assume there is plenty of storage remaining
         self.As_sBatlvl = "none"
 
@@ -65,6 +58,12 @@ class urcuMonitor(Node):
 
         self.pub_soft_shutdown_req = self.create_publisher(Bool, "/antobridge/soft_shutdown_req", qos_profile)
         self.pub_soc = self.create_publisher(UInt8, "/antobot/urcu/soc", qos_profile)
+
+
+        self.pub_cpu_load = self.create_publisher(Float32, "/antobot/urcu/cpu_load", qos_profile)          # instant
+        self.pub_cpu_load_avg = self.create_publisher(Float32, "/antobot/urcu/cpu_load_avg", qos_profile)  # window avg
+        self.pub_cpu_temp = self.create_publisher(Float32, "/antobot/urcu/cpu_temp", qos_profile)          # degC
+
 
         self.soft_shutdown_client = self.create_client(SoftShutdown, '/antobot/soft_shutdown_req')
 
@@ -88,6 +87,20 @@ class urcuMonitor(Node):
 
         self.cpu_temp_level()
         self.cpu_load_level()
+
+        # ====== publish topics ======
+        msg = Float32()
+        msg.data = float(self.As_cputemp)
+        self.pub_cpu_temp.publish(msg)
+
+        msg = Float32()
+        msg.data = float(self.As_cpuLoad)
+        self.pub_cpu_load.publish(msg)
+
+        msg = Float32()
+        msg.data = float(self.cpuLoad_avg)
+        self.pub_cpu_load_avg.publish(msg)
+        # ========================
 
     def xavier_monitor_int(self):
         # access to Jtop and read the xavier info
@@ -248,8 +261,13 @@ class urcuMonitor(Node):
         # ===================== Continuous CPU load logging =====================
         # If test mode is enabled, log CPU load value every loop (not only on change).
         if self.enable_cpu_load_test:
-            self.logger.info(f"SF1110: CPU load = {self.As_cpuLoad:.2f}%")
-        # ===========================================================================
+            self.logger.info(f"SF1100: CPU load = {self.As_cpuLoad:.2f}%")
+        # ======================================================================
+
+        # ===================== HIGH load=====================
+        if self.cpu_load_level_str == "high":
+            self.logger.error(f"SF1100: CPU load HIGH inst={self.As_cpuLoad:.2f}% avg={self.cpuLoad_avg:.2f}%")
+        # ================================================================================
 
 
 def main():
