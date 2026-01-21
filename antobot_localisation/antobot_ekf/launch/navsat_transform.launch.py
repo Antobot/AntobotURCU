@@ -13,6 +13,7 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 from antobot_urcu.launchManager import AntobotSWNode, Launchfile
+from antobot_com_postgresql.db_config_loader import get_robot_config
 
 def generate_launch_description():
 
@@ -23,15 +24,7 @@ def generate_launch_description():
        'navsat_transform.yaml'  
     )
 
-    # Path to platform YAML
-    platform_config_file = os.path.join(
-        get_package_share_directory('antobot_description'),
-        'config',
-        'platform_config.yaml'
-    )
-
-    with open(platform_config_file, 'r') as f:
-        platform_config = yaml.safe_load(f)
+    platform_config = get_robot_config("platform_config")
 
     robot_hardware = platform_config.get('robot_hardware', False)
 
