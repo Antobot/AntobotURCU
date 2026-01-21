@@ -29,7 +29,7 @@ class softShutdownServer(Node):
 
         return
 
-    def softShutdownProcess(req, res):
+    def softShutdownProcess(self,req, res):
 
         self.logger.info("SF1410: Soft shutdown service callback entered!")
         time.sleep(4) #leave time to send /antobridge/soft_shutdown_req topic to antobridge, repeat 100 times
