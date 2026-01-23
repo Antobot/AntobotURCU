@@ -1,0 +1,71 @@
+# <!--
+# The primary purpose of this launch file is to launch the ekf_map and
+# ekf_odom parameters for sensor fusion localiastion.
+# The ekf_odom is for the local parameters like odometry and IMU,
+# ekf_map is the for the global parameters like RTK GNSS, wheel odometry and IMU.
+#
+#  -->
+
+import os
+import yaml
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration
+from launch_ros.substitutions import FindPackageShare
+from launch_ros.actions import Node
+from ament_index_python.packages import get_package_share_directory
+from antobot_urcu.launchManager import AntobotSWNode, Launchfile
+
+def generate_launch_description():
+
+    ld = LaunchDescription()
+
+    platform_config_file = os.path.join(
+        get_package_share_directory('antobot_description'),
+        'config',
+        'platform_config.yaml'
+    )
+
+    with open(platform_config_file, 'r') as f:
+        platform_config = yaml.safe_load(f)
+
+    use_sim_time_value = not platform_config.get('robot_hardware', False)
+    # use_sim_time_value = True
+
+
+    # Declare launch arguments
+    yaw_offset = DeclareLaunchArgument('yaw_offset', default_value='0.0', description='Initial yaw offset')
+    # use_sim_time_arg = DeclareLaunchArgument('use_sim_time', default_value='true', description='Enable simulation time')
+    ld.add_action(yaw_offset)
+
+
+    # Include NavSat launch
+    # navSatLaunchObj = Launchfile("navSatTransform", 'antobot_ekf', 'navsat_transform.launch.py', )
+    # ld.add_action(navSatLaunchObj.include_launch())
+    navsat_transform_config = os.path.join(
+        get_package_share_directory('antobot_ekf'),
+        'params',
+        'navsat_transform_lio.yaml'
+    )
+
+    # Define nodes
+    navsat_transform_node = Node(
+        package='robot_localization',
+        executable='navsat_transform_node',
+        name='navsat_transform_node',
+        parameters=[navsat_transform_config,
+                    {'use_sim_time': use_sim_time_value},
+                    {'robot_hardware': True}],
+        remappings=[('/gps/fix', '/antobot_gps'),
+                    ('/imu', '/imu/data_corrected'),
+                    ('/odometry/filtered','/odometry/base')
+                    ],
+        output='screen'
+    )
+
+    ld.add_action(navsat_transform_node)
+
+    return ld
