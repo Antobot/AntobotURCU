@@ -43,7 +43,9 @@
 #include <antobot_manager_msgs/srv/progress_update.hpp>
 
 
+#include <chrono>
 
+using namespace std::chrono_literals;
 
 using std::placeholders::_1;
 
@@ -567,7 +569,7 @@ private:
 
 
 
-            rclcpp::sleep_for(std::chrono::milliseconds(10));
+            rclcpp::sleep_for(10ms);
         }
 
         RCLCPP_DEBUG(this->get_logger(), "gps_yaw is %f", gps_yaw); 
@@ -724,7 +726,7 @@ private:
                 
             }
             pub_cmd_vel->publish(tmp);   
-            rclcpp::sleep_for(std::chrono::nanoseconds(1000000000));
+            rclcpp::sleep_for(50ms);
             rclcpp::spin_some(nh_global_);
 
             // Check the distance
