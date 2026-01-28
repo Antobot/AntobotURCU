@@ -24,7 +24,9 @@ def generate_launch_description():
    
     ld = LaunchDescription()
 
-    platform_config = get_robot_config("platform_config")
+    packagePath = get_package_share_directory('antobot_description')
+    platform_config_path = os.path.join(packagePath, 'config', 'platform_config.yaml')
+    platform_config = get_robot_config("platform_config", platform_config_path)
     
     use_sim_time_value = not platform_config.get('robot_hardware', False)
 
