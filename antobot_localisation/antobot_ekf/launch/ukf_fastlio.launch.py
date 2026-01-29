@@ -32,8 +32,8 @@ def generate_launch_description():
     with open(platform_config_file, 'r') as f:
         platform_config = yaml.safe_load(f)
 
-    use_sim_time_value = not platform_config.get('robot_hardware', False)
-    # use_sim_time_value = True
+    # use_sim_time_value = not platform_config.get('robot_hardware', False)
+    use_sim_time_value = True
 
 
     # Declare launch arguments
@@ -45,29 +45,29 @@ def generate_launch_description():
     # use_sim_time = LaunchConfiguration('use_sim_time')
 
     # Get the path to the YAML configuration files
-    ekf_odom_config = os.path.join(get_package_share_directory('antobot_ekf'),'params','ekf_odom_fastlio.yaml')
-    ekf_map_config = os.path.join(get_package_share_directory('antobot_ekf'), 'params','ekf_map_fastlio.yaml')
+    ukf_odom_config = os.path.join(get_package_share_directory('antobot_ekf'),'params','ukf_odom_fastlio.yaml')
+    ukf_map_config = os.path.join(get_package_share_directory('antobot_ekf'), 'params','ukf_map_fastlio.yaml')
 
     # Define EKF odometry node
-    ekf_odom_node = Node(
+    ukf_odom_node = Node(
         package='robot_localization',
-        executable='ekf_node',
-        name='ekfOdom_node',
-        parameters=[ekf_odom_config, {'use_sim_time': use_sim_time_value}],
-        remappings=[('/odometry/filtered', '/odometry/ekfOdom')],
+        executable='ukf_node',
+        name='ukfOdom_node',
+        parameters=[ukf_odom_config, {'use_sim_time': use_sim_time_value}],
+        remappings=[('/odometry/filtered', '/odometry/ukfOdom')],
         output='screen'
     )
-    ld.add_action(ekf_odom_node)
+    ld.add_action(ukf_odom_node)
 
     # Define EKF map node
-    ekf_map_node = Node(
+    ukf_map_node = Node(
         package='robot_localization',
-        executable='ekf_node',
-        name='ekfMap_node',
-        parameters=[ekf_map_config, {'use_sim_time': use_sim_time_value}],
+        executable='ukf_node',
+        name='ukfMap_node',
+        parameters=[ukf_map_config, {'use_sim_time': use_sim_time_value}],
         output='screen'
     )
-    ld.add_action(ekf_map_node)
+    ld.add_action(ukf_map_node)
 
     # Include NavSat launch
     # navSatLaunchObj = Launchfile("navSatTransform", 'antobot_ekf', 'navsat_transform.launch.py', )
