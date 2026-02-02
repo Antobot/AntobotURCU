@@ -229,7 +229,7 @@ class AntobotSWNode:
 
 
 class Launchfile:
-    def __init__(self, name_arg, package_arg, exec_arg, ssh=[], delay=None, cpu=None):
+    def __init__(self, name_arg, package_arg, exec_arg, ssh=[], delay=None, cpu=None, param_dict=None):
         self._name = name_arg
         self._package = get_package_share_directory(package_arg)
         self._exec = exec_arg
@@ -244,6 +244,9 @@ class Launchfile:
         else:
             self._delay = delay
 
+        # Optional parameter dict (key: param name, value: param value)
+        self._param_dict = param_dict
+
 
     def include_launch(self):
 
@@ -251,12 +254,24 @@ class Launchfile:
         # If ssh is enabled, execute `ros2 launch <package> <launchfile>` on the remote host.
         # NOTE: we only use the provided ssh list if it contains at least 3 entries:
         #       [user, host, ws]. If the list is shorter, we treat it as "no SSH".
+
+        # Helper to format parameter values for CLI/launch args
+        def _format_val(v):
+            if isinstance(v, bool):
+                return 'true' if v else 'false'
+            return str(v)
+
+        launch_args = {}
+        if self._param_dict:
+            for k, v in self._param_dict.items():
+                if v is None:
+                    continue
+                launch_args[k] = _format_val(v)
+
         if len(self._ssh) >= 3:
             user   = self._ssh[0]
             host   = self._ssh[1]
             ws     = self._ssh[2]
-
-
 
             remote = f"{user}@{host}"
             remote_cmd = (
@@ -269,6 +284,10 @@ class Launchfile:
                 f'export FASTRTPS_DEFAULT_PROFILES_FILE={ws}/src/acARCU/U302_Description/antobot_description/config/arcu_fastdds.xml; '
                 f'exec ros2 launch {os.path.basename(self._package)} {self._exec}'
             )
+            # Append param args for remote CLI invocation
+            if launch_args:
+                args_str = ' '.join([f"{k}:={v}" for k, v in launch_args.items()])
+                remote_cmd = remote_cmd + ' ' + args_str
             return ExecuteProcess(
                 cmd=[
                     'ssh', '-tt', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=no',
@@ -281,12 +300,17 @@ class Launchfile:
 
         if self._cpu is not None:
             # taskset -c <cpu> ros2 launch pkg file.py
+            cmd = [
+                'taskset', '-c', self._cpu,
+                'ros2', 'launch',
+                os.path.basename(self._package), self._exec
+            ]
+            # Append param CLI args
+            if launch_args:
+                for k, v in launch_args.items():
+                    cmd.append(f"{k}:={v}")
             return ExecuteProcess(
-                cmd=[
-                    'taskset', '-c', self._cpu,
-                    'ros2', 'launch',
-                    os.path.basename(self._package), self._exec
-                ],
+                cmd=cmd,
                 shell=False,
                 output='screen'
             )
@@ -294,11 +318,13 @@ class Launchfile:
         extension = self._exec.rsplit('.',1)[-1]
         if extension == "py":
             launch_desc = IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(os.path.join(self._package, 'launch', self._exec))
+                PythonLaunchDescriptionSource(os.path.join(self._package, 'launch', self._exec)),
+                launch_arguments=launch_args.items() if launch_args else None
             )
         elif extension == "xml":
             launch_desc = IncludeLaunchDescription(
-                XMLLaunchDescriptionSource(os.path.join(self._package, 'launch', self._exec))
+                XMLLaunchDescriptionSource(os.path.join(self._package, 'launch', self._exec)),
+                launch_arguments=launch_args.items() if launch_args else None
             )
 
         return launch_desc
