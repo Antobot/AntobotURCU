@@ -24,6 +24,7 @@
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <std_msgs/msg/u_int8.hpp>
+#include <std_msgs/msg/int32.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
@@ -156,13 +157,17 @@ private:
     rclcpp::TimerBase::SharedPtr auto_calibration_timer_;
     rclcpp::TimerBase::SharedPtr gps_calibration_timer_;
     rclcpp::TimerBase::SharedPtr imu_pub_timer_;
+    rclcpp::TimerBase::SharedPtr hmi_progress_timer_;
     
     // Clients
     rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr ekf_cli;
-    rclcpp::Client<antobot_devices_msgs::srv::ProgressUpdate>::SharedPtr hmi_cli;
+    rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr hmi_progress_pub;
     
     // Services
     rclcpp::Service<antobot_manager_msgs::srv::ProgressUpdate>::SharedPtr hmi_calibration_srv;
+
+    // HMI progress state (1: ready, 2: auto calibration, 3: success, 4: fail)
+    int hmi_progress_state;
     
     // Functions
     void initialise(){
@@ -261,7 +266,7 @@ private:
         
         // Clients
         ekf_cli = this->create_client<std_srvs::srv::Trigger>("launch_ekf"); // launch ekf nodes once the initial calibration is done
-        hmi_cli = this->create_client<antobot_devices_msgs::srv::ProgressUpdate>("/calibration_HMI/progressUpdate"); // update progress in HMI bridge
+        hmi_progress_pub = this->create_publisher<std_msgs::msg::Int32>("/calibration_HMI/progressUpdate", 10); // update progress in HMI bridge
         
         // Service - currently causes large build error!
         hmi_calibration_srv = this->create_service<antobot_manager_msgs::srv::ProgressUpdate>("/calibration/progressUpdate", 
@@ -271,8 +276,34 @@ private:
         callback_group = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
         // auto_calibration_timer_ = this->create_wall_timer(std::chrono::seconds(15), std::bind(&AntobotHeading::autoCalibrate, this), callback_group); // every 15 secs # was 30 sec
         imu_pub_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AntobotHeading::publishNewIMU, this), callback_group); // 20Hz 
+        hmi_progress_state = 0;
+        hmi_progress_timer_ = this->create_wall_timer(std::chrono::seconds(1), std::bind(&AntobotHeading::publishHmiProgressTimer, this), callback_group);
     }
 
+    void setHmiProgress(int state)
+    {
+        hmi_progress_state = state;
+        publishHmiProgress();
+        (void)state;
+    }
+
+    void publishHmiProgressTimer()
+    {
+        publishHmiProgress();
+    }
+
+    void publishHmiProgress()
+    {
+        // if (hmi_progress_state < 0) {
+        //     return;
+        // }
+        // if (!force && hmi_progress_state == 3) {
+        //     return;
+        // }
+        std_msgs::msg::Int32 msg;
+        msg.data = hmi_progress_state;
+        hmi_progress_pub->publish(msg);
+    }
     
     //void autoCalibrate(rclcpp::Node::SharedPtr nh_){
     void autoCalibrate(){
@@ -512,15 +543,17 @@ private:
         
         nh_global_ = this->get_node_base_interface();
 
+        // update HMI progress : state 0 - calibration not ready (publish immediately)
+        setHmiProgress(0);
+        RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 0 (calibration not ready)");
+
         checkInputs();
         int state = 1;
-        
-        // update HMI progress : state 1 - ready for calibration
-        auto hmi_req = std::make_shared<antobot_devices_msgs::srv::ProgressUpdate::Request>();
-        hmi_req->progress_code = 1;
-        auto hmi_res1 = hmi_cli->async_send_request(hmi_req);
-        RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 1 (ready for calibration)");
 
+        // update HMI progress : state 1 - ready for calibration
+        setHmiProgress(1);
+        RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 1 (ready for calibration)");
+        
         
         while (true){
             if (heading_received){
@@ -535,12 +568,13 @@ private:
             }
 
             rclcpp::spin_some(nh_global_);
+            if (state == 1 && hmi_progress_state != 1) {
+                setHmiProgress(1);
+            }
             if (hmi_auto_button_pressed && (state != 3)){ // to prevent a bug that makes robot drive 1m more after finishing calibration - possibly due to hmi button being pressed for a longer time. 
                 hmi_auto_button_pressed = false; 
                 // update HMI progress : state 2 - In auto calibration
-                auto hmi_req = std::make_shared<antobot_devices_msgs::srv::ProgressUpdate::Request>();
-                hmi_req->progress_code = 2;
-                auto result = hmi_cli->async_send_request(hmi_req);
+                setHmiProgress(2);
                 RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 2 (In auto calibration) - Robot will move forward");
                 state = 4;
             } // If moving for set distance fail - send fail progress 4
@@ -590,8 +624,7 @@ private:
         RCLCPP_INFO(this->get_logger(), "MV2100: Initial calibration finished, (offset = %f degs)", imu_offset/M_PI*180.0);
 
         // update HMI progress : state 3 - calibration success
-        hmi_req->progress_code = 3;
-        auto hmi_res2 = hmi_cli->async_send_request(hmi_req);
+        setHmiProgress(3);
         RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 3 (ready for job)");
         auto ekf_req = std::make_shared<std_srvs::srv::Trigger::Request>();
         auto ekf_res1 = ekf_cli->async_send_request(ekf_req);
@@ -701,9 +734,7 @@ private:
                 RCLCPP_INFO(this->get_logger(), "HMI auto-calibration: Time out (15s)- Fail");
                 // update HMI progress : state 4 - calibration fail
                 //antobot_devices_msgs::srv::ProgressUpdate hmi_req;
-                auto hmi_req = std::make_shared<antobot_devices_msgs::srv::ProgressUpdate::Request>();
-                hmi_req->progress_code = 4;
-                auto result = hmi_cli->async_send_request(hmi_req);
+                setHmiProgress(4);
                 RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 4 (auto calibration fail)");
                 break;
             }
