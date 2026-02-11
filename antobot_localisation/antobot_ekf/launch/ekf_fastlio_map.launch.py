@@ -45,19 +45,7 @@ def generate_launch_description():
     # use_sim_time = LaunchConfiguration('use_sim_time')
 
     # Get the path to the YAML configuration files
-    ekf_odom_config = os.path.join(get_package_share_directory('antobot_ekf'),'params','ekf_odom_fastlio.yaml')
-    ekf_map_config = os.path.join(get_package_share_directory('antobot_ekf'), 'params','ekf_map_fastlio.yaml')
-
-    # Define EKF odometry node
-    ekf_odom_node = Node(
-        package='robot_localization',
-        executable='ekf_node',
-        name='ekfOdom_node',
-        parameters=[ekf_odom_config, {'use_sim_time': use_sim_time_value}],
-        remappings=[('/odometry/filtered', '/odometry/ekfOdom')],
-        output='screen'
-    )
-    ld.add_action(ekf_odom_node)
+    ekf_map_config = os.path.join(get_package_share_directory('antobot_ekf'), 'params','ekf_map_go.yaml')
 
     # Define EKF map node
     ekf_map_node = Node(
