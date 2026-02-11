@@ -45,6 +45,18 @@ from std_srvs.srv import Empty
 from launch.actions import ExecuteProcess
 # ==========================================
 
+def _cli_quote(s: str) -> str:
+    return "'" + (s or "").replace("'", "'\"'\"'") + "'"
+
+def _format_cli_val(v):
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (list, tuple)):
+        return str(list(v)).replace("'", '"')
+    if isinstance(v, dict):
+        return str(v).replace("'", '"')
+    return str(v)
+
 class ProcessListener():
 
     def __init__():
@@ -154,44 +166,68 @@ class AntobotSWNode:
         # If ssh is enabled, run the target executable on a remote host via SSH.
         # NOTE: we only use the provided ssh list if it contains at least 3 entries:
         #       [user, host, ws]. If the list is shorter, we treat it as "no SSH".
-        if len(self._ssh) >= 3:
+        if len(self._ssh) >= 4:
             # Read remote parameters from the provided list: [user, host, ws]
             user = self._ssh[0]
             host = self._ssh[1]
             ws   = self._ssh[2]
+            dds    = self._ssh[3]
 
             remote = f"{user}@{host}"
 
             # Decide between `ros2 run` and `ros2 launch` based on file suffix.
             is_launch = self._executable.endswith('.launch.py') or self._executable.endswith('.xml')
 
-            # Build remote command. We wrap with bash -lc and a quoted string to avoid quoting issues.
+            ros_args = []
+
+            if self._namespace and self._namespace != "":
+                ros_args += ["-r", f"__ns:={self._namespace}"]
+
+            if self._name and self._name != "":
+                ros_args += ["-r", f"__node:={self._name}"]
+
+            if isinstance(self._param_dict, dict) and self._param_dict:
+                for k, v in self._param_dict.items():
+                    if v is None:
+                        continue
+                    ros_args += ["-p", f"{k}:={_format_cli_val(v)}"]
+
+            if self._param_files:
+                files = self._param_files if isinstance(self._param_files, list) else [self._param_files]
+                for pf in files:
+                    ros_args += ["--params-file", pf]
+
+            ros_args_str = ""
+            if ros_args:
+                ros_args_str = " --ros-args " + " ".join([_cli_quote(x) for x in ros_args])
+
+            # Build remote command. We wrap with bash -lc to avoid quoting issues.
             if is_launch:
                 remote_cmd = (
                     f'set -e; '
                     f'source /opt/ros/humble/setup.bash; '
-                    f'source {ws}/install/setup.bash; '
+                    f'source {ws}; '
                     f'export ROS_DOMAIN_ID=1; '
                     f'export RMW_IMPLEMENTATION=rmw_fastrtps_cpp; '
-                    f'export FASTRTPS_DEFAULT_PROFILES_FILE={ws}/src/acARCU/U302_Description/antobot_description/config/arcu_fastdds.xml; '
-                    f'exec ros2 launch {self._package} {self._executable}'
+                    f'export FASTRTPS_DEFAULT_PROFILES_FILE={dds}; '
+                    f'exec ros2 launch {self._package} {self._executable}{ros_args_str}'
                 )
             else:
                 remote_cmd = (
                     f'set -e; '
                     f'source /opt/ros/humble/setup.bash; '
-                    f'source {ws}/install/setup.bash; '
+                    f'source {ws}; '
                     f'export ROS_DOMAIN_ID=1; '
                     f'export RMW_IMPLEMENTATION=rmw_fastrtps_cpp; '
-                    f'export FASTRTPS_DEFAULT_PROFILES_FILE={ws}/src/acARCU/U302_Description/antobot_description/config/arcu_fastdds.xml; '
-                    f'exec ros2 run {self._package} {self._executable}'
+                    f'export FASTRTPS_DEFAULT_PROFILES_FILE={dds}; '
+                    f'exec ros2 run {self._package} {self._executable}{ros_args_str}'
                 )
 
             # Return an ExecuteProcess action that performs the SSH invocation.
             return ExecuteProcess(
                 cmd=[
                     'ssh', '-tt', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=no',
-                    remote, 'bash', '-lc', f'"{remote_cmd}"'
+                    remote, 'bash', '-lc', remote_cmd
                 ],
                 shell=False,
                 output='screen'
@@ -229,7 +265,7 @@ class AntobotSWNode:
 
 
 class Launchfile:
-    def __init__(self, name_arg, package_arg, exec_arg, ssh=[], delay=None, cpu=None):
+    def __init__(self, name_arg, package_arg, exec_arg, ssh=[], delay=None, cpu=None, param_dict=None, ros_param_dict=None):
         self._name = name_arg
         self._package = get_package_share_directory(package_arg)
         self._exec = exec_arg
@@ -244,6 +280,11 @@ class Launchfile:
         else:
             self._delay = delay
 
+        # Optional parameter dict (key: param name, value: param value)
+        self._param_dict = param_dict
+
+        self._ros_param_dict = ros_param_dict
+
 
     def include_launch(self):
 
@@ -251,28 +292,57 @@ class Launchfile:
         # If ssh is enabled, execute `ros2 launch <package> <launchfile>` on the remote host.
         # NOTE: we only use the provided ssh list if it contains at least 3 entries:
         #       [user, host, ws]. If the list is shorter, we treat it as "no SSH".
-        if len(self._ssh) >= 3:
+
+        # Helper to format parameter values for CLI/launch args
+        def _format_val(v):
+            if isinstance(v, bool):
+                return 'true' if v else 'false'
+            return str(v)
+
+        launch_args = {}
+        if self._param_dict:
+            for k, v in self._param_dict.items():
+                if v is None:
+                    continue
+                launch_args[k] = _format_val(v)
+
+        ros_args = []
+        if isinstance(self._ros_param_dict, dict) and self._ros_param_dict:
+            for k, v in self._ros_param_dict.items():
+                if v is None:
+                    continue
+                ros_args += ["-p", f"{k}:={_format_cli_val(v)}"]
+
+        ros_args_str = ""
+        if ros_args:
+            ros_args_str = " --ros-args " + " ".join([_cli_quote(x) for x in ros_args])
+
+        if len(self._ssh) >= 4:
             user   = self._ssh[0]
             host   = self._ssh[1]
             ws     = self._ssh[2]
-
-
+            dds    = self._ssh[3]
 
             remote = f"{user}@{host}"
             remote_cmd = (
                 f'set -e; '
                 f'source /opt/ros/humble/setup.bash; '
-                f'source {ws}/install/setup.bash; '
+                f'source {ws}; '
                 f'sleep {self._delay}; '
                 f'export ROS_DOMAIN_ID=1; '
                 f'export RMW_IMPLEMENTATION=rmw_fastrtps_cpp; '
-                f'export FASTRTPS_DEFAULT_PROFILES_FILE={ws}/src/acARCU/U302_Description/antobot_description/config/arcu_fastdds.xml; '
+                f'export FASTRTPS_DEFAULT_PROFILES_FILE={dds}; '
                 f'exec ros2 launch {os.path.basename(self._package)} {self._exec}'
             )
+            if launch_args:
+                args_str = ' '.join([f"{k}:={v}" for k, v in launch_args.items()])
+                remote_cmd = remote_cmd + ' ' + args_str
+            if ros_args_str:
+                remote_cmd = remote_cmd + ros_args_str
             return ExecuteProcess(
                 cmd=[
                     'ssh', '-tt', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=no',
-                    remote, 'bash', '-lc', f'"{remote_cmd}"'
+                    remote, 'bash', '-lc', remote_cmd
                 ],
                 shell=False,
                 output='screen'
@@ -281,12 +351,19 @@ class Launchfile:
 
         if self._cpu is not None:
             # taskset -c <cpu> ros2 launch pkg file.py
+            cmd = [
+                'taskset', '-c', self._cpu,
+                'ros2', 'launch',
+                os.path.basename(self._package), self._exec
+            ]
+            if launch_args:
+                for k, v in launch_args.items():
+                    cmd.append(f"{k}:={v}")
+            if ros_args_str:
+                cmd.append("--ros-args")
+                cmd += ros_args
             return ExecuteProcess(
-                cmd=[
-                    'taskset', '-c', self._cpu,
-                    'ros2', 'launch',
-                    os.path.basename(self._package), self._exec
-                ],
+                cmd=cmd,
                 shell=False,
                 output='screen'
             )
@@ -294,14 +371,19 @@ class Launchfile:
         extension = self._exec.rsplit('.',1)[-1]
         if extension == "py":
             launch_desc = IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(os.path.join(self._package, 'launch', self._exec))
+                PythonLaunchDescriptionSource(os.path.join(self._package, 'launch', self._exec)),
+                launch_arguments=launch_args.items() if launch_args else None
             )
         elif extension == "xml":
             launch_desc = IncludeLaunchDescription(
-                XMLLaunchDescriptionSource(os.path.join(self._package, 'launch', self._exec))
+                XMLLaunchDescriptionSource(os.path.join(self._package, 'launch', self._exec)),
+                launch_arguments=launch_args.items() if launch_args else None
             )
 
-        return launch_desc
+        if not ros_args:
+            return launch_desc
+
+        return GroupAction([launch_desc])
 
 def main(args):
 

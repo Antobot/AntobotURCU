@@ -18,20 +18,16 @@ from launch_ros.substitutions import FindPackageShare
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 from antobot_urcu.launchManager import AntobotSWNode, Launchfile
+from antobot_com_postgresql.db_config_loader import get_robot_config
 
 def generate_launch_description():
    
     ld = LaunchDescription()
 
-    platform_config_file = os.path.join(
-        get_package_share_directory('antobot_description'),
-        'config',
-        'platform_config.yaml'
-    )
-
-    with open(platform_config_file, 'r') as f:
-        platform_config = yaml.safe_load(f)
-
+    packagePath = get_package_share_directory('antobot_description')
+    platform_config_path = os.path.join(packagePath, 'config', 'platform_config.yaml')
+    platform_config = get_robot_config("platform_config", platform_config_path)
+    
     use_sim_time_value = not platform_config.get('robot_hardware', False)
 
     # Declare launch arguments
