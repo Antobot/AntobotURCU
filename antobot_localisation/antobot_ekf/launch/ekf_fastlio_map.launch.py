@@ -73,7 +73,7 @@ def generate_launch_description():
         name='navsat_transform_node',
         parameters=[navsat_transform_config,
                     {'use_sim_time': use_sim_time_value},
-                    {'robot_hardware': True}],
+                    {'robot_hardware': False}],
         remappings=[('/gps/fix', '/antobot_gps'),
                     ('/imu', '/imu/data_corrected'),
                     # ('/odometry/filtered','/odometry/fuse')

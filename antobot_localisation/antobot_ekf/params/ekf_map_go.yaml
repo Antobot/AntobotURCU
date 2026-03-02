@@ -25,7 +25,7 @@ ekfMap_node:
     # vx, vy, vz,
     # vroll, vpitch, vyaw,
     # ax, ay, az
-    odom0: /odometry/gps
+    odom0: /antobot_localization/localization_base_odom
 
     odom0_config: [true,  true,  false,
                    false, false, false,
@@ -38,18 +38,31 @@ ekfMap_node:
     odom0_differential: false
     odom0_relative: false
 
-    odom1: /antobot_lidar_odom/Odometry
+    odom1: /antobot/robot/odometry
 
-    odom1_config: [ true, true,  false,
-                    true, true, true,
+    odom1_config: [ false, false,  false,
                     false, false, false,
-                    false, false, false,
+                    true, true, false,
+                    false, false, true,
                     false, false, false ]
 
     odom1_queue_size: 10
     odom1_nodelay: true
     odom1_differential: true
-    odom1_relative: true
+    odom1_relative: false
+
+#    odom2: /antobot_lidar_odom/Odometry
+#
+#    odom2_config: [ false, false,  false,
+#                    false, false, true,
+#                    false, false, false,
+#                    false, false, false,
+#                    false, false, false ]
+#
+#    odom2_queue_size: 10
+#    odom2_nodelay: true
+#    odom2_differential: false
+#    odom2_relative: false
 
 
 
