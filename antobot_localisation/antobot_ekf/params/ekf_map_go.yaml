@@ -25,7 +25,7 @@ ekfMap_node:
     # vx, vy, vz,
     # vroll, vpitch, vyaw,
     # ax, ay, az
-    odom0: /antobot_localization/localization_base_odom
+    odom0: /antobot_localization/localization_base_local_odom
 
     odom0_config: [true,  true,  false,
                    false, false, false,
