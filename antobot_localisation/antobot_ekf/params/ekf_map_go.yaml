@@ -12,7 +12,7 @@ ekfMap_node:
 
     debug_out_file: ekf.log
 
-    publish_tf: true
+    publish_tf: false
 
     publish_acceleration: false
 
@@ -38,12 +38,12 @@ ekfMap_node:
     odom0_differential: false
     odom0_relative: false
 
-    odom1: /antobot/robot/odometry
+    odom1: /antobot_localization/localization_base_odom
 
-    odom1_config: [ false, false,  false,
+    odom1_config: [ false, false, false,
                     false, false, false,
-                    true, true, false,
-                    false, false, true,
+                    false, false, false,
+                    false, false, false,
                     false, false, false ]
 
     odom1_queue_size: 10
