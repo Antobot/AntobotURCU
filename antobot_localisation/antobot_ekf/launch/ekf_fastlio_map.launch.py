@@ -32,8 +32,8 @@ def generate_launch_description():
     with open(platform_config_file, 'r') as f:
         platform_config = yaml.safe_load(f)
 
-    use_sim_time_value = not platform_config.get('robot_hardware', False)
-    # use_sim_time_value = True
+    # use_sim_time_value = not platform_config.get('robot_hardware', False)
+    use_sim_time_value = True
 
 
     # Declare launch arguments
@@ -48,14 +48,14 @@ def generate_launch_description():
     ekf_map_config = os.path.join(get_package_share_directory('antobot_ekf'), 'params','ekf_map_go.yaml')
 
     # Define EKF map node
-    ekf_map_node = Node(
-        package='robot_localization',
-        executable='ekf_node',
-        name='ekfMap_node',
-        parameters=[ekf_map_config, {'use_sim_time': use_sim_time_value}],
-        output='screen'
-    )
-    ld.add_action(ekf_map_node)
+    # ekf_map_node = Node(
+    #     package='robot_localization',
+    #     executable='ekf_node',
+    #     name='ekfMap_node',
+    #     parameters=[ekf_map_config, {'use_sim_time': use_sim_time_value}],
+    #     output='screen'
+    # )
+    # ld.add_action(ekf_map_node)
 
     # Include NavSat launch
     # navSatLaunchObj = Launchfile("navSatTransform", 'antobot_ekf', 'navsat_transform.launch.py', )
@@ -73,10 +73,10 @@ def generate_launch_description():
         name='navsat_transform_node',
         parameters=[navsat_transform_config,
                     {'use_sim_time': use_sim_time_value},
-                    {'robot_hardware': True}],
+                    {'robot_hardware': False}],
         remappings=[('/gps/fix', '/antobot_gps'),
                     ('/imu', '/imu/data_corrected'),
-                    # ('/odometry/filtered','/odometry/fuse')
+                    ('/odometry/filtered','/antobot_localization/localization_base_local_odom')
                     ],
         output='screen'
     )
