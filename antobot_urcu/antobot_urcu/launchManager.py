@@ -208,8 +208,8 @@ class AntobotSWNode:
                     f'source /opt/ros/humble/setup.bash; '
                     f'source {ws}; '
                     f'export ROS_DOMAIN_ID=1; '
-                    f'export RMW_IMPLEMENTATION=rmw_fastrtps_cpp; '
-                    f'export FASTRTPS_DEFAULT_PROFILES_FILE={dds}; '
+                    f'export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp; '
+                    f'export CYCLONEDDS_URI=file://{dds}; '
                     f'exec ros2 launch {self._package} {self._executable}{ros_args_str}'
                 )
             else:
@@ -218,8 +218,8 @@ class AntobotSWNode:
                     f'source /opt/ros/humble/setup.bash; '
                     f'source {ws}; '
                     f'export ROS_DOMAIN_ID=1; '
-                    f'export RMW_IMPLEMENTATION=rmw_fastrtps_cpp; '
-                    f'export FASTRTPS_DEFAULT_PROFILES_FILE={dds}; '
+                    f'export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp; '
+                    f'export CYCLONEDDS_URI=file://{dds}; '
                     f'exec ros2 run {self._package} {self._executable}{ros_args_str}'
                 )
 
@@ -330,8 +330,8 @@ class Launchfile:
                 f'source {ws}; '
                 f'sleep {self._delay}; '
                 f'export ROS_DOMAIN_ID=1; '
-                f'export RMW_IMPLEMENTATION=rmw_fastrtps_cpp; '
-                f'export FASTRTPS_DEFAULT_PROFILES_FILE={dds}; '
+                f'export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp; '
+                f'export CYCLONEDDS_URI=file://{dds}; '
                 f'exec ros2 launch {os.path.basename(self._package)} {self._exec}'
             )
             if launch_args:
