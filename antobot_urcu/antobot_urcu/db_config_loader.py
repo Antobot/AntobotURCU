@@ -162,9 +162,11 @@ def get_robot_config(config_name: str, config_path: Optional[str] = None):
     Returns a dict (empty dict if not found).
     """
     # 1. Try reading from cfg_robot (database)
-    cfg = _read_from_cfg_robot_db(config_name, timeout=_db_timeout)
-    if cfg:
-        return cfg
+    database_cfg = False
+    if database_cfg:
+        cfg = _read_from_cfg_robot_db(config_name, timeout=_db_timeout)
+        if cfg:
+            return cfg
 
     # 2. Fallback to filesystem
     if config_path:
