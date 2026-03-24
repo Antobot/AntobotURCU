@@ -13,7 +13,6 @@
   <test_depend>ament_lint_common</test_depend>
 
   <depend>antobot_devices_msgs</depend>
-  <depend>antobot_manager_msgs</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

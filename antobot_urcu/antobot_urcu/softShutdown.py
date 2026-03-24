@@ -29,10 +29,10 @@ class softShutdownServer(Node):
 
         return
 
-    def softShutdownProcess(self,req, res):
+    def softShutdownProcess(req, res):
 
         self.logger.info("SF1410: Soft shutdown service callback entered!")
-        #time.sleep(4) #leave time to send /antobridge/soft_shutdown_req topic to antobridge, repeat 100 times
+        time.sleep(4) #leave time to send /antobridge/soft_shutdown_req topic to antobridge, repeat 100 times
         
         # self.logger.info("SF1410: killing nodes now")
         # os.system("ros2 node kill /anto_bridge")
@@ -42,7 +42,7 @@ class softShutdownServer(Node):
         
         self.logger.info("SF1410: will shutdown in 2 sec ")
         time.sleep(2)
-        subprocess.run(["systemctl", "poweroff", "--no-wall"], check=True)
+        subprocess.run(["systemctl", "poweroff"], check=True)
         return res
 
 

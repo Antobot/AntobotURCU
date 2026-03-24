@@ -16,7 +16,6 @@ find_package(sensor_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(antobot_devices_msgs REQUIRED)
-find_package(antobot_manager_msgs REQUIRED)
 #find_package(geographic_msgs REQUIRED)
 
 add_executable(heading_node src/heading_node.cpp)
@@ -30,7 +29,7 @@ ament_target_dependencies(heading_node
   tf2
   tf2_geometry_msgs
   antobot_devices_msgs
-  antobot_manager_msgs)
+  )
 target_include_directories(heading_node PUBLIC include include/antobot_heading)
 
 install(

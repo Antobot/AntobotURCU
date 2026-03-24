@@ -5,7 +5,6 @@
 
 
 import os
-import yaml
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.conditions import IfCondition
@@ -13,7 +12,6 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 from antobot_urcu.launchManager import AntobotSWNode, Launchfile
-from antobot_com_postgresql.db_config_loader import get_robot_config
 
 def generate_launch_description():
 
@@ -24,19 +22,12 @@ def generate_launch_description():
        'navsat_transform.yaml'  
     )
 
-    packagePath = get_package_share_directory('antobot_description')
-    platform_config_path = os.path.join(packagePath, 'config', 'platform_config.yaml')
-    platform_config = get_robot_config("platform_config", platform_config_path)
-
-    robot_hardware = platform_config.get('robot_hardware', False)
-
     # Define nodes
     navsat_transform_node = Node(
         package='robot_localization',
         executable='navsat_transform_node',
         name='navsat_transform_node',
-        parameters=[navsat_transform_config,
-                    {'robot_hardware': robot_hardware}],
+        parameters=[navsat_transform_config],
         remappings=[('/gps/fix', '/antobot_gps'), ('/imu', '/imu/data_corrected')],
         arguments=[
             '--ros-args',

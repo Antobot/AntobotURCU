@@ -24,7 +24,6 @@
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <std_msgs/msg/u_int8.hpp>
-#include <std_msgs/msg/int32.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
@@ -41,21 +40,10 @@
 #include <antobot_devices_msgs/msg/gps_heading.hpp>
 
 #include <antobot_devices_msgs/srv/progress_update.hpp>
-#include <antobot_manager_msgs/srv/progress_update.hpp>
 
-
-#include <chrono>
-
-using namespace std::chrono_literals;
 
 using std::placeholders::_1;
 
-//#include <geonav_transform/navsat_conversions.h>
-
-//using namespace GeonavTransform::NavsatConversions;
-
-//namespace heading
-//{
 class AntobotHeading : public rclcpp::Node
 {
 public:
@@ -75,7 +63,10 @@ private:
     tf2::Matrix3x3 mat;
     size_t count_;
     
-    
+    bool heading_received;
+    bool dual_gps_calibration_finished;
+    // std_msgs::msg::Float64 dual_gps_heading;
+    antobot_devices_msgs::msg::GpsHeading gps_heading;
 
     // configuration parameters
     double calib_distance, angular_zero_tol, lin_tol, calib_deg;
@@ -87,12 +78,6 @@ private:
     double utm_y, utm_x, rtk_status;
     std::string utm_zone;
     int rtk_target_status; 
-
-    // dual GPS
-    bool dual_gps;
-    bool heading_received;
-    bool dual_gps_calibration_finished;
-    antobot_devices_msgs::msg::GpsHeading gps_heading;
     
     // imu
     geometry_msgs::msg::Quaternion q_imu;
@@ -157,17 +142,13 @@ private:
     rclcpp::TimerBase::SharedPtr auto_calibration_timer_;
     rclcpp::TimerBase::SharedPtr gps_calibration_timer_;
     rclcpp::TimerBase::SharedPtr imu_pub_timer_;
-    rclcpp::TimerBase::SharedPtr hmi_progress_timer_;
     
     // Clients
     rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr ekf_cli;
-    rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr hmi_progress_pub;
+    rclcpp::Client<antobot_devices_msgs::srv::ProgressUpdate>::SharedPtr hmi_cli;
     
     // Services
-    rclcpp::Service<antobot_manager_msgs::srv::ProgressUpdate>::SharedPtr hmi_calibration_srv;
-
-    // HMI progress state (1: ready, 2: auto calibration, 3: success, 4: fail)
-    int hmi_progress_state;
+    rclcpp::Service<antobot_devices_msgs::srv::ProgressUpdate>::SharedPtr hmi_calibration_srv;
     
     // Functions
     void initialise(){
@@ -189,12 +170,10 @@ private:
         rtk_status = -1; // default value
         
         // dual GPS
-        dual_gps = false;
         heading_received = false;
         dual_gps_calibration_finished = false;
         heading_received_time = this->now();
         
-    
         // imu
         imu_frame = "imu_frame";
         imu_received = false;
@@ -236,8 +215,6 @@ private:
         this->declare_parameter("heading_node/wheel_odometry_topic", wheelodometry_topic);
         //nh_.param<bool>("/simulation", sim, false);
         
-
-        dual_gps = this->declare_parameter("dual_gps", dual_gps);
         sim = this->get_parameter("use_sim_time").as_bool();
 
         rtk_target_status = 3; // rtk status is 3 in 3D fixed mode
@@ -266,44 +243,18 @@ private:
         
         // Clients
         ekf_cli = this->create_client<std_srvs::srv::Trigger>("launch_ekf"); // launch ekf nodes once the initial calibration is done
-        hmi_progress_pub = this->create_publisher<std_msgs::msg::Int32>("/calibration_HMI/progressUpdate", 10); // update progress in HMI bridge
+        hmi_cli = this->create_client<antobot_devices_msgs::srv::ProgressUpdate>("/calibration_HMI/progressUpdate"); // update progress in HMI bridge
         
         // Service - currently causes large build error!
-        hmi_calibration_srv = this->create_service<antobot_manager_msgs::srv::ProgressUpdate>("/calibration/progressUpdate", 
+        hmi_calibration_srv = this->create_service<antobot_devices_msgs::srv::ProgressUpdate>("/calibration/progressUpdate", 
         std::bind(&AntobotHeading::hmiService, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
         
         // Timer
         callback_group = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
-        // auto_calibration_timer_ = this->create_wall_timer(std::chrono::seconds(15), std::bind(&AntobotHeading::autoCalibrate, this), callback_group); // every 15 secs # was 30 sec
+        auto_calibration_timer_ = this->create_wall_timer(std::chrono::seconds(15), std::bind(&AntobotHeading::autoCalibrate, this), callback_group); // every 15 secs # was 30 sec
         imu_pub_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AntobotHeading::publishNewIMU, this), callback_group); // 20Hz 
-        hmi_progress_state = 0;
-        hmi_progress_timer_ = this->create_wall_timer(std::chrono::seconds(1), std::bind(&AntobotHeading::publishHmiProgressTimer, this), callback_group);
     }
 
-    void setHmiProgress(int state)
-    {
-        hmi_progress_state = state;
-        publishHmiProgress();
-        (void)state;
-    }
-
-    void publishHmiProgressTimer()
-    {
-        publishHmiProgress();
-    }
-
-    void publishHmiProgress()
-    {
-        // if (hmi_progress_state < 0) {
-        //     return;
-        // }
-        // if (!force && hmi_progress_state == 3) {
-        //     return;
-        // }
-        std_msgs::msg::Int32 msg;
-        msg.data = hmi_progress_state;
-        hmi_progress_pub->publish(msg);
-    }
     
     //void autoCalibrate(rclcpp::Node::SharedPtr nh_){
     void autoCalibrate(){
@@ -330,6 +281,18 @@ private:
                     //if (rtk_status == rtk_target_status && odometry_received){
                     if (rtk_status == rtk_target_status && odometry_received){   //1 = float; 3 = fix
                         state = 1;
+                        // if (dual_gps){ // dual GPS doesn't require calculating the heading based on the GPS position
+                        //     if (dualGPSHeadingCalibration()){
+                        //         state = 3;
+                        //     }  // if dual gps heading is not updated - state remains 0
+                        //     else{
+                        //         rclcpp::sleep_for(std::chrono::milliseconds(1000)); // TODO: whether 1s is too long?
+                        //     }
+                            
+                        // }
+                        // else{
+                        //     state = 1;
+                        // }
                     }
                 }
                 else if (state == 1){ // Save start gps position
@@ -341,6 +304,29 @@ private:
                     state= checkCondition(); // returns the state
                 }
                 else if (state == 3){ // Conditions met, start the calibration
+                    // gps angle calculated 
+                    // RCLCPP_DEBUG(this->get_logger(), "gps angles = %f", gps_yaw);
+                    // tf2::Quaternion quat_tf_imu;
+                    // tf2::convert(q_imu , quat_tf_imu);
+                    // std::vector<double> result_imu = eulerFromQuat(quat_tf_imu); // returns r,p,y
+                    // tf2::Quaternion quat_tf_odom;
+                    // tf2::convert(q_odom , quat_tf_odom);
+                    // std::vector<double> result_odom = eulerFromQuat(quat_tf_odom);
+                    // // imu_yaw + imu_offset = gps_yaw
+                    // // Compare two angles in [-pi,pi] and returns signed value in radian
+                    // double diff = calculateDifference(gps_yaw,result_odom[2]);
+                    // RCLCPP_DEBUG(this->get_logger(), "diff = %f", diff);
+                    // double diff_deg = abs(diff*180.0/M_PI);
+                    // RCLCPP_DEBUG(this->get_logger(), "angle diff = %f",diff_deg);
+                    // if (diff_deg > calib_deg){
+                    //     double imu_offset_tmp = calculateDifference(gps_yaw, result_imu[2]); // difference between orientations from imu and gps
+                    //     imu_offset = imu_offset_tmp;
+                    //     RCLCPP_INFO(this->get_logger(), "MV2200: Auto-calibration complete (imu offset = %f degs)", imu_offset / M_PI * 180.0);
+                    // }
+                    // else{
+                    //     RCLCPP_INFO(this->get_logger(), "auto-calibration not required %f deg",diff_deg);
+                    // }
+
                     compute_imu_offset();
                     break; // Auto calibration finished
                 }
@@ -375,15 +361,15 @@ private:
         RCLCPP_DEBUG(this->get_logger(), "diff = %f", diff);
         double diff_deg = abs(diff*180.0/M_PI);
         RCLCPP_DEBUG(this->get_logger(), "angle diff = %f",diff_deg);
-        //if (diff_deg > calib_deg || (this->now() - dual_gps_calibration_time).seconds() < 1){
-        if (diff_deg > calib_deg){ // need to test
+        if (diff_deg > calib_deg || (this->now() - dual_gps_calibration_time).seconds() < 1){
             double imu_offset_tmp = calculateDifference(gps_yaw, result_imu[2]); // difference between orientations from imu and gps
             imu_offset = imu_offset_tmp;
 
             if (diff_deg > calib_deg){ 
                 RCLCPP_INFO_STREAM(this->get_logger(), "diff_deg: " << diff_deg << "; calib_deg: " << calib_deg);
                 RCLCPP_INFO(this->get_logger(), "MV2200: Auto-calibration complete (imu offset = %f degs)", imu_offset / M_PI * 180.0);
-            }  
+            }
+                
         }
         else{
             RCLCPP_INFO(this->get_logger(), "auto-calibration not required %f deg",diff_deg);
@@ -543,38 +529,44 @@ private:
         
         nh_global_ = this->get_node_base_interface();
 
-        // update HMI progress : state 0 - calibration not ready (publish immediately)
-        setHmiProgress(0);
-        RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 0 (calibration not ready)");
-
         checkInputs();
         int state = 1;
-
-        // update HMI progress : state 1 - ready for calibration
-        setHmiProgress(1);
-        RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 1 (ready for calibration)");
         
+        // update HMI progress : state 1 - ready for calibration
+        auto hmi_req = std::make_shared<antobot_devices_msgs::srv::ProgressUpdate::Request>();
+        hmi_req->progress_code = 1;
+        auto hmi_res1 = hmi_cli->async_send_request(hmi_req);
+        RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 1 (ready for calibration)");
+
+        if (heading_received){
+            rclcpp::sleep_for(std::chrono::milliseconds(200)); // prevent instant HMI screen change
+            
+            // while (dualGPSHeadingCalibration()== false){
+            //     rclcpp::sleep_for(std::chrono::milliseconds(50));
+            //     rclcpp::spin_some(nh_global_); // Initial Calibration runs before spin() in main loop
+            // };
+
+            if (dualGPSHeadingCalibration()){
+                state = 3;
+                RCLCPP_INFO(this->get_logger(), "Heading calibration using dual gps");
+            }  
+
+            gps_calibration_timer_ = this->create_wall_timer(std::chrono::seconds(1), std::bind(&AntobotHeading::dualGPSHeadingCalibration, this), callback_group);
+        }
         
         while (true){
-            if (heading_received){
-                if (dualGPSHeadingCalibration()){
-                    state = 3;
-                    RCLCPP_INFO(this->get_logger(), "Heading calibration using dual gps");
-                }  
-            }
 
             if (dual_gps_calibration_finished && (state != 3)){ // this is for receiving gps_heading but valid;
                 state = 3;
             }
 
             rclcpp::spin_some(nh_global_);
-            if (state == 1 && hmi_progress_state != 1) {
-                setHmiProgress(1);
-            }
             if (hmi_auto_button_pressed && (state != 3)){ // to prevent a bug that makes robot drive 1m more after finishing calibration - possibly due to hmi button being pressed for a longer time. 
                 hmi_auto_button_pressed = false; 
                 // update HMI progress : state 2 - In auto calibration
-                setHmiProgress(2);
+                auto hmi_req = std::make_shared<antobot_devices_msgs::srv::ProgressUpdate::Request>();
+                hmi_req->progress_code = 2;
+                auto result = hmi_cli->async_send_request(hmi_req);
                 RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 2 (In auto calibration) - Robot will move forward");
                 state = 4;
             } // If moving for set distance fail - send fail progress 4
@@ -603,7 +595,7 @@ private:
 
 
 
-            rclcpp::sleep_for(10ms);
+            rclcpp::sleep_for(std::chrono::milliseconds(10));
         }
 
         RCLCPP_DEBUG(this->get_logger(), "gps_yaw is %f", gps_yaw); 
@@ -622,19 +614,12 @@ private:
         msg.data = imu_calibration_status;
         pub_calib->publish(msg);
         RCLCPP_INFO(this->get_logger(), "MV2100: Initial calibration finished, (offset = %f degs)", imu_offset/M_PI*180.0);
-
         // update HMI progress : state 3 - calibration success
-        setHmiProgress(3);
+        hmi_req->progress_code = 3;
+        auto hmi_res2 = hmi_cli->async_send_request(hmi_req);
         RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 3 (ready for job)");
         auto ekf_req = std::make_shared<std_srvs::srv::Trigger::Request>();
         auto ekf_res1 = ekf_cli->async_send_request(ekf_req);
-
-        // Start GPS calibration timer
-        if (dual_gps) {
-            gps_calibration_timer_ = this->create_wall_timer(std::chrono::seconds(1), std::bind(&AntobotHeading::dualGPSHeadingCalibration, this), callback_group);
-        }
-        auto_calibration_timer_ = this->create_wall_timer(std::chrono::seconds(15), std::bind(&AntobotHeading::autoCalibrate, this), callback_group); // every 15 secs # was 30 sec
-
     }
     
     void checkInputs()
@@ -734,7 +719,9 @@ private:
                 RCLCPP_INFO(this->get_logger(), "HMI auto-calibration: Time out (15s)- Fail");
                 // update HMI progress : state 4 - calibration fail
                 //antobot_devices_msgs::srv::ProgressUpdate hmi_req;
-                setHmiProgress(4);
+                auto hmi_req = std::make_shared<antobot_devices_msgs::srv::ProgressUpdate::Request>();
+                hmi_req->progress_code = 4;
+                auto result = hmi_cli->async_send_request(hmi_req);
                 RCLCPP_INFO(this->get_logger(), "HMI progress updated - state 4 (auto calibration fail)");
                 break;
             }
@@ -757,7 +744,7 @@ private:
                 
             }
             pub_cmd_vel->publish(tmp);   
-            rclcpp::sleep_for(50ms);
+            rclcpp::sleep_for(std::chrono::nanoseconds(1000000000));
             rclcpp::spin_some(nh_global_);
 
             // Check the distance
@@ -792,8 +779,8 @@ private:
 
     void hmiService(
         const std::shared_ptr<rmw_request_id_t> request_header,
-        const std::shared_ptr<antobot_manager_msgs::srv::ProgressUpdate::Request> req, 
-        const std::shared_ptr<antobot_manager_msgs::srv::ProgressUpdate::Response> res)
+        const std::shared_ptr<antobot_devices_msgs::srv::ProgressUpdate::Request> req, 
+        const std::shared_ptr<antobot_devices_msgs::srv::ProgressUpdate::Response> res)
     {
         RCLCPP_INFO(this->get_logger(), "HMI button pressed - set hmi_auto_button_pressed True %d",req->progress_code);
         hmi_auto_button_pressed = true;
@@ -847,13 +834,14 @@ private:
 
         // only if the recevied heading is up to date
         if ((this->now() - heading_received_time).seconds() < 0.5 && gps_heading.heading_valid){ 
+            // gps_yaw is dual gps heading in -pi and +pi 
+            // float gps_yaw_tmp = double(dual_gps_heading.data)*M_PI/180.0;
             
             float gps_yaw_tmp = double(gps_heading.heading)*M_PI/180.0;
             // Adjust the angle to be within -PI to +PI
             if (gps_yaw_tmp > M_PI) {
                 gps_yaw_tmp -= 2.0 * M_PI;
             }
-            
             gps_yaw = gps_yaw_tmp;
             
             if (imu_calibration_status < 0){ // gps_end used only for the initial calibration 
@@ -875,8 +863,8 @@ private:
             
         }
         else{
-            // RCLCPP_WARN_STREAM(this->get_logger(), "dual GPS Calibration failed: timeout: " << (this->now() - heading_received_time).seconds() 
-            //     << "s; heading_valid: " << gps_heading.heading_valid);
+            RCLCPP_WARN_STREAM(this->get_logger(), "dual GPS Calibration failed: timeout: " << (this->now() - heading_received_time).seconds() 
+                << "s; heading_valid: " << gps_heading.heading_valid);
                 
             return false;
         }
