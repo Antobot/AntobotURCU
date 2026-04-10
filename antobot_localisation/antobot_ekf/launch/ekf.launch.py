@@ -78,8 +78,7 @@ def generate_launch_description():
         executable='navsat_transform_node',
         name='navsat_transform_node',
         parameters=[navsat_transform_config, {'use_sim_time': use_sim_time_value}],
-        # remappings=[('/gps/fix', '/antobot_gps'), ('/imu', '/imu/data_corrected')],
-        remappings=[('/gps/fix', '/antobot_gps/filtered_for_ekf'), ('/imu', '/imu/data_corrected')],
+        remappings=[('/gps/fix', '/antobot_gps'), ('/imu', '/imu/data_corrected')],
         output='screen'  
     )
 
