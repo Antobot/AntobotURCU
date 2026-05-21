@@ -79,7 +79,11 @@ def generate_launch_description():
         name='navsat_transform_node',
         parameters=[navsat_transform_config, {'use_sim_time': use_sim_time_value}],
         remappings=[('/gps/fix', '/antobot_gps'), ('/imu', '/imu/data_corrected')],
-        output='screen'  
+        arguments=[
+            '--ros-args',
+            '--log-level', 'navsat_transform:=debug'
+        ],
+        output='both'
     )
 
     ld.add_action(navsat_transform_node)
