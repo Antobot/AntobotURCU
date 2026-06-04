@@ -12,9 +12,16 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 
-from std_msgs.msg import Bool, UInt8, Float32
+from std_msgs.msg import Bool, UInt8, Float32, Float32MultiArray
 from antobot_platform_msgs.msg import UInt8Array, Float32Array, UInt16Array
 from antobot_platform_msgs.srv import SoftShutdown
+
+from can_bridge_msgs.msg import CanBridge
+from geometry_msgs.msg import Twist
+from sensor_msgs.msg import Joy
+import os
+from ament_index_python.packages import get_package_share_directory
+from antobot_com_postgresql.db_config_loader import get_robot_config
 
 disk = "./"
 min_gb = 2
@@ -26,6 +33,13 @@ class urcuMonitor(Node):
     def __init__(self):
         super().__init__("urcuMonitor")
         self.logger = self.get_logger()
+        self.declare_parameter("enable_debug_log", True)
+        # packagePath = get_package_share_directory('antobot_description')
+        # platform_config_path = os.path.join(packagePath, 'config', 'platform_config.yaml')
+        # platform_config = get_robot_config("platform_config", platform_config_path)
+
+        # enable_debug_log = platform_config.get("enable_debug_log", True)
+        # self.declare_parameter("enable_debug_log", enable_debug_log)
 
         self.jtop_ext = False  # If using this script inside of a docker container, self.jtop_ext should be True
 
@@ -49,6 +63,21 @@ class urcuMonitor(Node):
 
         self.storage_level = 0  # Assume there is plenty of storage remaining
         self.As_sBatlvl = "none"
+        
+        self.joy_log_period = 1  # seconds
+        self.last_joy_log_time = self.get_clock().now()
+        self.cmd_vel_log_period = 1  # seconds
+        self.last_cmd_vel_log_time = self.get_clock().now()
+        self.can_read_log_period = 1  # seconds
+        self.last_can_read_log_time = self.get_clock().now()
+        self.can_write_log_period = 1  # seconds
+        self.last_can_write_log_time = self.get_clock().now()
+        self.teleop_cmd_vel_log_period = 1  # seconds
+        self.last_teleop_cmd_vel_log_time = self.get_clock().now()
+        self.track_status_log_period = 1  # seconds
+        self.last_track_status_log_time = self.get_clock().now()
+        self.track_vel_log_period = 1  # seconds
+        self.last_track_vel_log_time = self.get_clock().now()
 
         qos_profile = QoSProfile(depth=10)
 
@@ -58,6 +87,41 @@ class urcuMonitor(Node):
 
         self.pub_soft_shutdown_req = self.create_publisher(Bool, "/antobridge/soft_shutdown_req", qos_profile)
         self.pub_soc = self.create_publisher(UInt8, "/antobot/urcu/soc", qos_profile)
+        
+        
+        self.sub_can_read_debug = self.create_subscription(CanBridge,
+                                                           "/antobot/bridge/can/read",
+                                                           self.can_read_debug_callback,
+                                                           qos_profile)
+
+        self.sub_can_write_debug = self.create_subscription(CanBridge,
+                                                            "/antobot/bridge/can/write",
+                                                            self.can_write_debug_callback,
+                                                            qos_profile)
+
+        self.sub_joy_debug = self.create_subscription(Joy, "/joy",
+                                                      self.joy_debug_callback,
+                                                      qos_profile)
+
+        self.sub_cmd_vel_debug = self.create_subscription(Twist,
+                                                          "/antobot/robot/cmd_vel",
+                                                          self.cmd_vel_debug_callback,
+                                                          qos_profile)
+        
+        self.sub_teleop_cmd_vel_debug = self.create_subscription(Twist,
+                                                                 "/antobot/teleop/cmd_vel",
+                                                                 self.teleop_cmd_vel_debug_callback,
+                                                                 qos_profile)
+        
+        self.sub_track_status_debug = self.create_subscription(Float32MultiArray,
+                                                               "/antobot/track/status",
+                                                               self.track_status_debug_callback,
+                                                               qos_profile)
+
+        self.sub_track_vel_debug = self.create_subscription(Float32MultiArray,
+                                                            "/antobot/track/vel",
+                                                            self.track_vel_debug_callback,
+                                                            qos_profile)
 
 
         self.pub_cpu_load = self.create_publisher(Float32, "/antobot/urcu/cpu_load", qos_profile)          # instant
@@ -236,6 +300,179 @@ class urcuMonitor(Node):
         msg = UInt8()
         msg.data = self.As_uSoC
         self.pub_soc.publish(msg)
+
+
+
+    def is_debug_can_id(self, can_id):
+        debug_can_ids = {
+            # Track chassis motors, S401
+            0x101,  # 257, left track cmd write
+            0x301,  # 769, right track cmd write
+            
+            0x281,  # 641, left msg1
+            0x291,  # 657, left msg2
+
+            # Spray/folder IO module
+            0x108,  # 264, IO write for folder/DO
+            0x308,  # 776, IO read for DI/folder limit
+        }
+        return int(can_id) in debug_can_ids
+
+    def debug_log_enabled(self):
+        return self.get_parameter("enable_debug_log").value
+
+    def log_can_debug(self, direction, msg):
+        if not self.debug_log_enabled():
+            return
+
+        if not self.is_debug_can_id(msg.can_id):
+            return
+
+        self.logger.info(
+            f"[CAN {direction}] "
+            f"id={msg.can_id}(0x{int(msg.can_id):X}) "
+            f"len={msg.length} "
+            f"msg={msg.msg}"
+        )
+
+    def can_read_debug_callback(self, msg):
+        if not self.debug_log_enabled():
+            return
+
+        if not self.is_debug_can_id(msg.can_id):
+            return
+
+        now = self.get_clock().now()
+        dt = (now - self.last_can_read_log_time).nanoseconds / 1e9
+
+        if dt < self.can_read_log_period:
+            return
+
+        self.last_can_read_log_time = now
+        self.log_can_debug("READ", msg)
+
+    def can_write_debug_callback(self, msg):
+        if not self.debug_log_enabled():
+            return
+
+        if not self.is_debug_can_id(msg.can_id):
+            return
+
+        now = self.get_clock().now()
+        dt = (now - self.last_can_write_log_time).nanoseconds / 1e9
+
+        if dt < self.can_write_log_period:
+            return
+
+        self.last_can_write_log_time = now
+        self.log_can_debug("WRITE", msg)
+
+    def joy_debug_callback(self, msg):
+        if not self.debug_log_enabled():
+            return
+
+        now = self.get_clock().now()
+        dt = (now - self.last_joy_log_time).nanoseconds / 1e9
+
+        if dt < self.joy_log_period:
+            return
+
+        self.last_joy_log_time = now
+
+        self.logger.info(
+        f"[JOY] axes={list(msg.axes)} buttons={list(msg.buttons)}"
+        )
+
+    def cmd_vel_debug_callback(self, msg):
+        if not self.debug_log_enabled():
+            return
+
+        now = self.get_clock().now()
+        dt = (now - self.last_cmd_vel_log_time).nanoseconds / 1e9
+
+        if dt < self.cmd_vel_log_period:
+            return
+
+        self.last_cmd_vel_log_time = now
+
+        self.logger.info(
+            f"[CMD_VEL] "
+            f"linear=({msg.linear.x:.3f}, {msg.linear.y:.3f}, {msg.linear.z:.3f}) "
+            f"angular=({msg.angular.x:.3f}, {msg.angular.y:.3f}, {msg.angular.z:.3f})"
+        )
+
+    def teleop_cmd_vel_debug_callback(self, msg):
+        if not self.debug_log_enabled():
+            return
+
+        now = self.get_clock().now()
+        dt = (now - self.last_teleop_cmd_vel_log_time).nanoseconds / 1e9
+
+        if dt < self.teleop_cmd_vel_log_period:
+            return
+
+        self.last_teleop_cmd_vel_log_time = now
+
+        self.logger.info(
+        f"[TELEOP_CMD_VEL] "
+        f"linear=({msg.linear.x:.3f}, {msg.linear.y:.3f}, {msg.linear.z:.3f}) "
+        f"angular=({msg.angular.x:.3f}, {msg.angular.y:.3f}, {msg.angular.z:.3f})")
+
+
+    def track_status_debug_callback(self, msg):
+        if not self.debug_log_enabled():
+            return
+
+        if len(msg.data) < 4:
+            self.logger.warning(
+            f"[TRACK_STATUS] invalid data length={len(msg.data)}, expected at least 4")
+            return
+
+        now = self.get_clock().now()
+        dt = (now - self.last_track_status_log_time).nanoseconds / 1e9
+
+        if dt < self.track_status_log_period:
+            return
+
+        self.last_track_status_log_time = now
+
+        left_cmd = msg.data[0]
+        right_cmd = msg.data[1]
+        left_rpm = msg.data[2]
+        right_rpm = msg.data[3]
+
+        self.logger.info(
+             f"[TRACK_STATUS] "
+             f"left_cmd={left_cmd:.3f} "
+             f"right_cmd={right_cmd:.3f} "
+             f"left_rpm={left_rpm:.1f} "
+             f"right_rpm={right_rpm:.1f}")
+
+    def track_vel_debug_callback(self, msg):
+        if not self.debug_log_enabled():
+            return
+
+        if len(msg.data) < 2:
+            self.logger.warning(
+            f"[TRACK_VEL] invalid data length={len(msg.data)}, expected at least 2")
+            return
+
+        now = self.get_clock().now()
+        dt = (now - self.last_track_vel_log_time).nanoseconds / 1e9
+
+        if dt < self.track_vel_log_period:
+            return
+
+        self.last_track_vel_log_time = now
+
+        left_cmd = msg.data[0]
+        right_cmd = msg.data[1]
+
+        self.logger.info(
+             f"[TRACK_VEL] "
+             f"left_cmd={left_cmd:.3f} "
+             f"right_cmd={right_cmd:.3f}")
+
 
     def soft_shutdown_callback(self, soft_shutdown):
         if soft_shutdown.data:
