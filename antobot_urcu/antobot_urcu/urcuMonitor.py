@@ -15,7 +15,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 
-from std_msgs.msg import Bool, UInt8, Float32, Float32MultiArra
+from std_msgs.msg import Bool, UInt8, Float32, Float32MultiArray
 from sensor_msgs.msg import NavSatFixy
 from antobot_platform_msgs.msg import UInt8Array, Float32Array, UInt16Array
 from antobot_platform_msgs.srv import SoftShutdown
