@@ -7,12 +7,16 @@ from jtop import jtop
 import shutil
 import json
 import yaml
+import subprocess
+import time
+from datetime import datetime, timezone
 
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 
-from std_msgs.msg import Bool, UInt8, Float32, Float32MultiArray
+from std_msgs.msg import Bool, UInt8, Float32, Float32MultiArra
+from sensor_msgs.msg import NavSatFixy
 from antobot_platform_msgs.msg import UInt8Array, Float32Array, UInt16Array
 from antobot_platform_msgs.srv import SoftShutdown
 
@@ -63,6 +67,13 @@ class urcuMonitor(Node):
 
         self.storage_level = 0  # Assume there is plenty of storage remaining
         self.As_sBatlvl = "none"
+
+        # GPS time correction status
+        # GPS 校时相关状态
+        self.gps_time_sync_done = False
+        self.gps_time_sync_threshold_s = 5.0
+        self.min_valid_gps_epoch_s = datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp()
+        self.last_gps_time_s = None
         
         self.joy_log_period = 1  # seconds
         self.last_joy_log_time = self.get_clock().now()
@@ -84,6 +95,7 @@ class urcuMonitor(Node):
         self.sub_As_uBat = self.create_subscription(UInt8Array, "/antobridge/Ab_uBat", self.battery_callback, qos_profile)
         self.sub_soft_shutdown_button = self.create_subscription(Bool, '/antobridge/soft_shutdown_button',
                                                                  self.soft_shutdown_callback, qos_profile)
+        self.sub_gps_fix = self.create_subscription(NavSatFix, "/antobot_gps", self.gps_time_callback, qos_profile)
 
         self.pub_soft_shutdown_req = self.create_publisher(Bool, "/antobridge/soft_shutdown_req", qos_profile)
         self.pub_soc = self.create_publisher(UInt8, "/antobot/urcu/soc", qos_profile)
@@ -141,6 +153,103 @@ class urcuMonitor(Node):
         # ================================================================================================
 
         return
+
+    def gps_time_callback(self, msg):
+        # Trigger the time correction logic only once upon the first receipt of a valid GPS time
+        # 只在首次收到有效 GPS 时间时触发一次校时逻辑
+        if self.gps_time_sync_done:
+            return
+
+        gps_time_s = float(msg.header.stamp.sec) + float(msg.header.stamp.nanosec) / 1e9
+        if gps_time_s <= 0.0:
+            self.logger.warning("Received an invalid GPS timestamp, skipping this time correction")
+            return
+
+        # Cache the GPS timestamp for later use in determining whether the system time is abnormal
+        # 缓存 GPS 时间戳，供后续判断系统时间是否异常使用。
+        self.last_gps_time_s = gps_time_s
+        gps_dt_utc = datetime.fromtimestamp(gps_time_s, tz=timezone.utc)
+        self.logger.info(f"Received GPS time {gps_dt_utc.isoformat()}")
+        self.adjust_system_clock()
+
+        self.gps_time_sync_done = True
+
+    def adjust_system_clock(self):
+        if not self.is_need_adjust_system_clock():
+            return
+
+        gps_dt_utc = datetime.fromtimestamp(self.last_gps_time_s, tz=timezone.utc)
+        gps_time_str = gps_dt_utc.strftime("%Y-%m-%d %H:%M:%S")
+        self.logger.warning(f"Starting to correct the system clock using GPS UTC time: {gps_time_str}")
+
+        try:
+            # Disable automatic time synchronization before setting the clock manually.
+            # 手动校时前先关闭自动时间同步，避免刚设置完成又被同步服务覆盖。
+            sync_disable_result = subprocess.run(
+                ["sudo", "timedatectl", "set-ntp", "false"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.logger.info("Automatic time synchronization has been disabled temporarily")
+            if sync_disable_result.stdout.strip():
+                self.logger.info(f"timedatectl disable stdout: {sync_disable_result.stdout.strip()}")
+            if sync_disable_result.stderr.strip():
+                self.logger.warning(f"timedatectl disable stderr: {sync_disable_result.stderr.strip()}")
+        except Exception as e:
+            self.logger.error(f"Failed to disable automatic time sync: {e}")
+
+        try:
+            # Set the system time in UTC format.
+            # 使用 UTC 形式设置系统时间
+            result = subprocess.run(
+                ["sudo", "date", "-u", "-s", gps_time_str],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.logger.warning(
+                f"System clock has been corrected to GPS time {gps_dt_utc.isoformat()}"
+            )
+            if result.stdout.strip():
+                self.logger.info(f"date command standard output: {result.stdout.strip()}")
+            if result.stderr.strip():
+                self.logger.error(f"date command error output: {result.stderr.strip()}")
+        except Exception as e:
+            self.logger.error(f"Failed to correct system clock: {e}")
+            
+
+    def is_need_adjust_system_clock(self):
+        if self.gps_time_sync_done:
+            return False
+
+        if self.last_gps_time_s is None :
+            return False
+
+
+        if self.last_gps_time_s < self.min_valid_gps_epoch_s:
+            self.logger.warning("Abnormal GPS time")
+            return False
+
+        # Compare system time with GPS time
+        # 比较 系统时间 与 GPS时间
+        system_time_s = time.time()
+        time_diff_s = abs(system_time_s - self.last_gps_time_s)
+        system_dt_utc = datetime.fromtimestamp(system_time_s, tz=timezone.utc)
+        gps_dt_utc = datetime.fromtimestamp(self.last_gps_time_s, tz=timezone.utc)
+        self.logger.info(
+            "Compare system time with GPS time, "
+            f"system_utc={system_dt_utc.isoformat()}, gps_utc={gps_dt_utc.isoformat()}, "
+            f"diff={time_diff_s:.3f}s"
+        )
+
+        # System clock is normal
+        # 系统时间正常，不需要调整
+        if time_diff_s <= self.gps_time_sync_threshold_s:
+            self.logger.info("System clock is normal")
+            return False
+
+        return True
 
     def xavier_monitor(self):
 
