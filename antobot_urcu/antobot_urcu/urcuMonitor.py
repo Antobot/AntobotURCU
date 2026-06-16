@@ -33,7 +33,7 @@ class urcuMonitor(Node):
     def __init__(self):
         super().__init__("urcuMonitor")
         self.logger = self.get_logger()
-        self.declare_parameter("enable_debug_log", True)
+        self.declare_parameter("enable_debug_log", False)
         # packagePath = get_package_share_directory('antobot_description')
         # platform_config_path = os.path.join(packagePath, 'config', 'platform_config.yaml')
         # platform_config = get_robot_config("platform_config", platform_config_path)
