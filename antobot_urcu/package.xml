@@ -13,6 +13,10 @@
   <test_depend>python3-pytest</test_depend>
   <depend>rclpy</depend>
   <depend>antobot_platform_msgs</depend>
+  <depend>can_bridge_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
 
   <export>
     <build_type>ament_python</build_type>
