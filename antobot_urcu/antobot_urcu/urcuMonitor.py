@@ -34,6 +34,7 @@ class urcuMonitor(Node):
         super().__init__("urcuMonitor")
         self.logger = self.get_logger()
         self.declare_parameter("enable_debug_log", False)
+        self.debug_log_enabled = self.get_parameter("enable_debug_log").value
         # packagePath = get_package_share_directory('antobot_description')
         # platform_config_path = os.path.join(packagePath, 'config', 'platform_config.yaml')
         # platform_config = get_robot_config("platform_config", platform_config_path)
@@ -88,37 +89,32 @@ class urcuMonitor(Node):
         self.pub_soft_shutdown_req = self.create_publisher(Bool, "/antobridge/soft_shutdown_req", qos_profile)
         self.pub_soc = self.create_publisher(UInt8, "/antobot/urcu/soc", qos_profile)
         
-        
-        self.sub_can_read_debug = self.create_subscription(CanBridge,
+
+        if self.debug_log_enabled:
+            self.sub_can_read_debug = self.create_subscription(CanBridge,
                                                            "/antobot/bridge/can/read",
                                                            self.can_read_debug_callback,
                                                            qos_profile)
-
-        self.sub_can_write_debug = self.create_subscription(CanBridge,
+            self.sub_can_write_debug = self.create_subscription(CanBridge,
                                                             "/antobot/bridge/can/write",
                                                             self.can_write_debug_callback,
                                                             qos_profile)
-
-        self.sub_joy_debug = self.create_subscription(Joy, "/joy",
+            self.sub_joy_debug = self.create_subscription(Joy, "/joy",
                                                       self.joy_debug_callback,
                                                       qos_profile)
-
-        self.sub_cmd_vel_debug = self.create_subscription(Twist,
+            self.sub_cmd_vel_debug = self.create_subscription(Twist,
                                                           "/antobot/robot/cmd_vel",
                                                           self.cmd_vel_debug_callback,
                                                           qos_profile)
-        
-        self.sub_teleop_cmd_vel_debug = self.create_subscription(Twist,
+            self.sub_teleop_cmd_vel_debug = self.create_subscription(Twist,
                                                                  "/antobot/teleop/cmd_vel",
                                                                  self.teleop_cmd_vel_debug_callback,
                                                                  qos_profile)
-        
-        self.sub_track_status_debug = self.create_subscription(Float32MultiArray,
+            self.sub_track_status_debug = self.create_subscription(Float32MultiArray,
                                                                "/antobot/track/status",
                                                                self.track_status_debug_callback,
                                                                qos_profile)
-
-        self.sub_track_vel_debug = self.create_subscription(Float32MultiArray,
+            self.sub_track_vel_debug = self.create_subscription(Float32MultiArray,
                                                             "/antobot/track/vel",
                                                             self.track_vel_debug_callback,
                                                             qos_profile)
@@ -318,11 +314,9 @@ class urcuMonitor(Node):
         }
         return int(can_id) in debug_can_ids
 
-    def debug_log_enabled(self):
-        return self.get_parameter("enable_debug_log").value
 
     def log_can_debug(self, direction, msg):
-        if not self.debug_log_enabled():
+        if not self.debug_log_enabled:
             return
 
         if not self.is_debug_can_id(msg.can_id):
@@ -336,7 +330,7 @@ class urcuMonitor(Node):
         )
 
     def can_read_debug_callback(self, msg):
-        if not self.debug_log_enabled():
+        if not self.debug_log_enabled:
             return
 
         if not self.is_debug_can_id(msg.can_id):
@@ -352,7 +346,7 @@ class urcuMonitor(Node):
         self.log_can_debug("READ", msg)
 
     def can_write_debug_callback(self, msg):
-        if not self.debug_log_enabled():
+        if not self.debug_log_enabled:
             return
 
         if not self.is_debug_can_id(msg.can_id):
@@ -368,7 +362,7 @@ class urcuMonitor(Node):
         self.log_can_debug("WRITE", msg)
 
     def joy_debug_callback(self, msg):
-        if not self.debug_log_enabled():
+        if not self.debug_log_enabled:
             return
 
         now = self.get_clock().now()
@@ -384,7 +378,7 @@ class urcuMonitor(Node):
         )
 
     def cmd_vel_debug_callback(self, msg):
-        if not self.debug_log_enabled():
+        if not self.debug_log_enabled:
             return
 
         now = self.get_clock().now()
@@ -402,7 +396,7 @@ class urcuMonitor(Node):
         )
 
     def teleop_cmd_vel_debug_callback(self, msg):
-        if not self.debug_log_enabled():
+        if not self.debug_log_enabled:
             return
 
         now = self.get_clock().now()
@@ -420,7 +414,7 @@ class urcuMonitor(Node):
 
 
     def track_status_debug_callback(self, msg):
-        if not self.debug_log_enabled():
+        if not self.debug_log_enabled:
             return
 
         if len(msg.data) < 4:
@@ -449,7 +443,7 @@ class urcuMonitor(Node):
              f"right_rpm={right_rpm:.1f}")
 
     def track_vel_debug_callback(self, msg):
-        if not self.debug_log_enabled():
+        if not self.debug_log_enabled:
             return
 
         if len(msg.data) < 2:
