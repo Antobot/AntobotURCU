@@ -20,6 +20,7 @@
 
 import sys
 import os
+import shlex
 import yaml
 import rclpy
 from pathlib import Path
@@ -227,7 +228,11 @@ class AntobotSWNode:
             return ExecuteProcess(
                 cmd=[
                     'ssh', '-tt', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=no',
-                    remote, 'bash', '-lc', remote_cmd
+                    # ssh joins its arguments with spaces and the remote login shell
+                    # re-parses them, so the command must be quoted as ONE word;
+                    # otherwise the remote runs `bash -lc set` (dumping the whole
+                    # environment) and the rest of the string outside bash -lc.
+                    remote, 'bash', '-lc', shlex.quote(remote_cmd)
                 ],
                 shell=False,
                 output='screen'
@@ -342,7 +347,11 @@ class Launchfile:
             return ExecuteProcess(
                 cmd=[
                     'ssh', '-tt', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=no',
-                    remote, 'bash', '-lc', remote_cmd
+                    # ssh joins its arguments with spaces and the remote login shell
+                    # re-parses them, so the command must be quoted as ONE word;
+                    # otherwise the remote runs `bash -lc set` (dumping the whole
+                    # environment) and the rest of the string outside bash -lc.
+                    remote, 'bash', '-lc', shlex.quote(remote_cmd)
                 ],
                 shell=False,
                 output='screen'
